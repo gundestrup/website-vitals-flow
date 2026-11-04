@@ -12,6 +12,7 @@ import (
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/chrome"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/deep"
+	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/psi"
 
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/http3"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/httpcheck"
@@ -30,6 +31,7 @@ func scanCmd() *cobra.Command {
 		asJSON   bool
 		htmlOut  string
 		deepMode bool
+		psiMode  bool
 	)
 	cmd := &cobra.Command{
 		Use:   "scan <url>",
@@ -92,6 +94,13 @@ func scanCmd() *cobra.Command {
 					fmt.Fprintln(os.Stderr, "warn: lighthouse not on PATH — skipping audits")
 				}
 			}
+			if psiMode {
+				if r, perr := psi.Fetch(ctx, res.URL, cfg.PSIKey); perr == nil {
+					res.PSI = r
+				} else {
+					fmt.Fprintf(os.Stderr, "warn: psi: %v\n", perr)
+				}
+			}
 			if err := persist(ctx, cfg, res, started); err != nil {
 				fmt.Fprintf(os.Stderr, "warn: store run: %v\n", err)
 			}
@@ -117,6 +126,7 @@ func scanCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit full result as JSON")
 	cmd.Flags().StringVar(&htmlOut, "html", "", "write self-contained HTML report to file")
 	cmd.Flags().BoolVar(&deepMode, "deep", false, "add web-vitals attribution + lighthouse audits when available")
+	cmd.Flags().BoolVar(&psiMode, "psi", false, "also fetch PageSpeed Insights (public FQDNs only)")
 	return cmd
 }
 

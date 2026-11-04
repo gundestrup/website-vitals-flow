@@ -105,15 +105,17 @@ func (s *Store) JobLookup(ctx context.Context, id int64, kind *string, siteID *i
 func (s *Store) SiteByID(ctx context.Context, id int64) (*Site, error) {
 	site := &Site{}
 	var created string
+	var deepInt int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, key, url, label, schedule, keep_last, max_age_days, created_at
+		`SELECT id, key, url, label, schedule, keep_last, max_age_days, created_at, COALESCE(deep,0)
 		 FROM sites WHERE id=?`, id).
 		Scan(&site.ID, &site.Key, &site.URL, &site.Label, &site.Schedule,
-			&site.KeepLast, &site.MaxAgeDays, &created)
+			&site.KeepLast, &site.MaxAgeDays, &created, &deepInt)
 	if err != nil {
 		return nil, err
 	}
 	site.CreatedAt, _ = time.Parse(time.RFC3339, created)
+	site.Deep = deepInt == 1
 	return site, nil
 }
 

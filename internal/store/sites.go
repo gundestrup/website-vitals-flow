@@ -17,6 +17,7 @@ type Site struct {
 	KeepLast   int
 	MaxAgeDays int
 	CreatedAt  time.Time
+	Deep       bool
 }
 
 // GetOrCreateSite returns the site for key, creating it with the given
@@ -43,11 +44,12 @@ func (s *Store) GetOrCreateSite(ctx context.Context, key, url string, keepLast, 
 func (s *Store) SiteByKey(ctx context.Context, key string) (*Site, error) {
 	site := &Site{}
 	var created string
+	var deepInt int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, key, url, label, schedule, keep_last, max_age_days, created_at
+		`SELECT id, key, url, label, schedule, keep_last, max_age_days, created_at, COALESCE(deep,0)
 		 FROM sites WHERE key=?`, key).
 		Scan(&site.ID, &site.Key, &site.URL, &site.Label, &site.Schedule,
-			&site.KeepLast, &site.MaxAgeDays, &created)
+			&site.KeepLast, &site.MaxAgeDays, &created, &deepInt)
 	if err == sql.ErrNoRows {
 		return nil, sql.ErrNoRows
 	}
@@ -55,18 +57,24 @@ func (s *Store) SiteByKey(ctx context.Context, key string) (*Site, error) {
 		return nil, fmt.Errorf("site %s: %w", key, err)
 	}
 	site.CreatedAt, _ = time.Parse(time.RFC3339, created)
+	site.Deep = deepInt == 1
 	return site, nil
 }
 
 // UpsertSite sets schedule/label/retention on an existing or new site.
-func (s *Store) UpsertSite(ctx context.Context, key, url, label, schedule string, keepLast, maxAge int) (*Site, error) {
+func (s *Store) UpsertSite(ctx context.Context, key, url, label, schedule string, keepLast, maxAge int, deep bool) (*Site, error) {
+	d := 0
+	if deep {
+		d = 1
+	}
 	if _, err := s.db.ExecContext(ctx,
-		`INSERT INTO sites (key, url, label, schedule, keep_last, max_age_days, created_at)
-		 VALUES (?,?,?,?,?,?,?)
+		`INSERT INTO sites (key, url, label, schedule, keep_last, max_age_days, deep, created_at)
+		 VALUES (?,?,?,?,?,?,?,?)
 		 ON CONFLICT(key) DO UPDATE SET
 		   url=excluded.url, label=excluded.label, schedule=excluded.schedule,
-		   keep_last=excluded.keep_last, max_age_days=excluded.max_age_days`,
-		key, url, label, schedule, keepLast, maxAge,
+		   keep_last=excluded.keep_last, max_age_days=excluded.max_age_days,
+		   deep=excluded.deep`,
+		key, url, label, schedule, keepLast, maxAge, d,
 		time.Now().UTC().Format(time.RFC3339)); err != nil {
 		return nil, fmt.Errorf("upsert site %s: %w", key, err)
 	}
@@ -76,7 +84,7 @@ func (s *Store) UpsertSite(ctx context.Context, key, url, label, schedule string
 // ListSites returns every site, newest first.
 func (s *Store) ListSites(ctx context.Context) ([]Site, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, key, url, label, schedule, keep_last, max_age_days, created_at
+		`SELECT id, key, url, label, schedule, keep_last, max_age_days, created_at, COALESCE(deep,0)
 		 FROM sites ORDER BY key`)
 	if err != nil {
 		return nil, err
@@ -86,11 +94,13 @@ func (s *Store) ListSites(ctx context.Context) ([]Site, error) {
 	for rows.Next() {
 		var site Site
 		var created string
+		var deepInt int
 		if err := rows.Scan(&site.ID, &site.Key, &site.URL, &site.Label,
-			&site.Schedule, &site.KeepLast, &site.MaxAgeDays, &created); err != nil {
+			&site.Schedule, &site.KeepLast, &site.MaxAgeDays, &created, &deepInt); err != nil {
 			return nil, err
 		}
 		site.CreatedAt, _ = time.Parse(time.RFC3339, created)
+		site.Deep = deepInt == 1
 		out = append(out, site)
 	}
 	return out, rows.Err()

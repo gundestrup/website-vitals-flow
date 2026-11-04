@@ -44,13 +44,14 @@ func sitesCmd() *cobra.Command {
 			schedule, _ := cmd.Flags().GetString("schedule")
 			keep, _ := cmd.Flags().GetInt("keep-last")
 			maxAge, _ := cmd.Flags().GetInt("max-age-days")
+			deep, _ := cmd.Flags().GetBool("deep")
 			if keep <= 0 {
 				keep = cfg.KeepLast
 			}
 			if maxAge <= 0 {
 				maxAge = cfg.MaxAgeDays
 			}
-			site, err := st.UpsertSite(ctx0, key, canon, label, schedule, keep, maxAge)
+			site, err := st.UpsertSite(ctx0, key, canon, label, schedule, keep, maxAge, deep)
 			if err != nil {
 				return err
 			}
@@ -66,6 +67,7 @@ func sitesCmd() *cobra.Command {
 	add.Flags().String("schedule", "", "scan interval like 30m/6h/daily (empty = manual only)")
 	add.Flags().Int("keep-last", 0, "runs kept per site (default 100)")
 	add.Flags().Int("max-age-days", 0, "days before runs expire (default 56)")
+	add.Flags().Bool("deep", false, "deep scans (attribution+lighthouse) for this site")
 
 	list := &cobra.Command{
 		Use: "list", Short: "List sites",

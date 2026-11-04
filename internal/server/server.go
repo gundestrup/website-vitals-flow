@@ -98,7 +98,7 @@ func (s *Server) scanNow(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]string{"error": "unknown site"}, err)
 		return
 	}
-	id, err := s.runner.Enqueue(r.Context(), site.ID, "scan", false)
+	id, err := s.runner.Enqueue(r.Context(), site.ID, "scan", site.Deep)
 	writeJSON(w, map[string]int64{"job": id}, err)
 }
 
@@ -140,7 +140,7 @@ func (s *Server) scan(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, nil, err)
 		return
 	}
-	jobID, err := s.runner.Enqueue(r.Context(), site.ID, "scan", false)
+	jobID, err := s.runner.Enqueue(r.Context(), site.ID, "scan", site.Deep)
 	if err != nil {
 		writeJSON(w, nil, err)
 		return

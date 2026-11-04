@@ -20,6 +20,7 @@ type Config struct {
 	ScanTimeout time.Duration `yaml:"scan_timeout"` // whole-scan deadline
 	KeepLast    int           `yaml:"keep_last"`    // runs kept per site
 	MaxAgeDays  int           `yaml:"max_age_days"` // runs older than this are pruned
+	PSIKey      string        `yaml:"psi_key"`      // Google PSI API key (optional)
 }
 
 // Default returns the built-in defaults.
@@ -60,6 +61,9 @@ func applyEnv(c *Config) {
 	}
 	if v := os.Getenv("WVF_BROWSER_PATH"); v != "" {
 		c.BrowserPath = v
+	}
+	if v := os.Getenv("WVF_PSI_KEY"); v != "" {
+		c.PSIKey = v
 	}
 	if v := os.Getenv("WVF_SAMPLES"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {

@@ -16,6 +16,7 @@ import (
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/deep"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/http3"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/httpcheck"
+	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/psi"
 )
 
 // Response is one observed network response.
@@ -53,6 +54,7 @@ type Result struct {
 	HTTP3          *http3.Result     `json:"http3,omitempty"`
 	Attribution    *deep.Attribution `json:"attribution,omitempty"`
 	Lighthouse     *deep.LHReport    `json:"lighthouse,omitempty"`
+	PSI            *psi.Result       `json:"psi,omitempty"`
 	Samples        []Sample          `json:"samples"`
 }
 
