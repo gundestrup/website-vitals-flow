@@ -1,18 +1,29 @@
 # website-vitals-flow
 
-Contained localhost web vitals tester. Go 1.27, Cobra CLI, chromedp,
-modernc.org/sqlite (planned), stdlib net/http + embed dashboard (planned).
+Contained web-performance monitor: localhost/FQDN/IP targets, real
+Chrome Core Web Vitals + HTTP checks (h2/h3, compression, caching),
+monitored-site history, IDE-callable API. Single Go binary, SQLite.
 
 ## Build & verify
 
-- `make check` — gofmt gate + vet + `go test -race` + build + node --check
+- `make check` — gofmt gate + vet + `go test -race` + build
 - `make build` → `bin/wvf`
-- `bin/wvf scan <url> [--json] [--samples N]` — one-shot measurement
-- `bin/wvf scan http://localhost:PORT` needs a Chrome/Chromium binary;
-  set `browser_path` in wvf.yml or `WVF_BROWSER_PATH` if not auto-found
+- `bin/wvf doctor` — engine availability (chrome/node/lighthouse)
+- `bin/wvf scan <url> [--deep] [--psi] [--json] [--html f]`
+- `bin/wvf serve` — dashboard + scheduler on 127.0.0.1:8420
+- Chrome/Chromium auto-detected; `browser_path` in wvf.yml or
+  WVF_BROWSER_PATH to override; `psi_key`/WVF_PSI_KEY for PSI
 
 ## Conventions
 
-- `cmd/wvf` is a thin main; all code under `internal/`
-- context.Context everywhere work can block; whole-scan deadline
-- See `analysis.md` (design) and `build-plan.md` (phases)
+- `cmd/wvf` thin main; everything under `internal/`
+- RunSiteScan (internal/jobs) is THE scan path — cli/manual/scheduled
+- Schema migrations: additive `ALTER TABLE` only, bump schemaVersion,
+  guarded by `v < N`; never edit old schema constants
+- Retention inside the run-insert transaction — never a separate pass
+- Engine tag per run; don't mix engine series on one chart
+- modernc sqlite stores RFC3339 TEXT — scan as string + time.Parse
+- chromedp v0.22 generics API; observer-only entry types need
+  addScriptToEvaluateOnNewDocument; page JS runs on TAB contexts
+- Vendored UI assets in static/vendor via pinned package.json — never CDN
+- See analysis.md (design), build-plan.md (phases), matrix.md (survey)
