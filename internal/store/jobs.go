@@ -118,3 +118,24 @@ func (s *Store) JobDetail(ctx context.Context, id int64, detail string) error {
 		`UPDATE jobs SET detail=? WHERE id=?`, detail, id)
 	return err
 }
+
+// SetJobRun links a finished job to its produced run.
+func (s *Store) SetJobRun(ctx context.Context, id, runID int64) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE jobs SET run_id=? WHERE id=?`, runID, id)
+	return err
+}
+
+// JobByID fetches one job.
+func (s *Store) JobByID(ctx context.Context, id int64) (*Job, int64, error) {
+	var j Job
+	var runID int64
+	var st, fi string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, kind, site_id, state, detail, queued_at,
+		  COALESCE(started_at,''), COALESCE(finished_at,''), COALESCE(run_id,0)
+		 FROM jobs WHERE id=?`, id).Scan(&j.ID, &j.Kind, &j.SiteID, &j.State,
+		&j.Detail, &j.QueuedAt, &st, &fi, &runID)
+	j.StartedAt, j.FinishedAt = st, fi
+	return &j, runID, err
+}

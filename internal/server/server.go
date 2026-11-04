@@ -10,7 +10,9 @@ import (
 
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/jobs"
+	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/sitekey"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/store"
+	"time"
 )
 
 //go:embed static
@@ -31,6 +33,8 @@ func New(st *store.Store, cfg config.Config, r *jobs.Runner) http.Handler {
 	mux.HandleFunc("GET /api/sites/{key}/runs", s.runs)
 	mux.HandleFunc("GET /api/runs/{id}", s.run)
 	mux.HandleFunc("GET /api/jobs", s.jobs)
+	mux.HandleFunc("GET /api/jobs/{id}", s.job)
+	mux.HandleFunc("POST /api/scan", s.scan)
 	mux.HandleFunc("POST /api/scan-now", s.scanNow)
 	mux.Handle("GET /", s.static())
 	return headers(mux)
@@ -111,6 +115,88 @@ func fmt_Sscanf(s string, id *int64) (int, error) {
 }
 
 var errBadID = errString("bad id")
+
+// scan is the IDE/agent entry point: POST {"url": ..., "wait": seconds}.
+// Normalizes the URL to a site key (created on first sight), enqueues,
+// optionally waits for the result. Response: {"job", "site", "run"?}.
+func (s *Server) scan(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		URL  string `json:"url"`
+		Wait int    `json:"wait"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.URL == "" {
+		writeJSON(w, map[string]string{"error": "need url field"}, nil)
+		return
+	}
+	key, canon, err := sitekey.From(body.URL)
+	if err != nil {
+		writeJSON(w, nil, err)
+		return
+	}
+	site, err := s.st.GetOrCreateSite(r.Context(), key, canon,
+		s.cfg.KeepLast, s.cfg.MaxAgeDays)
+	if err != nil {
+		writeJSON(w, nil, err)
+		return
+	}
+	jobID, err := s.runner.Enqueue(r.Context(), site.ID, "scan")
+	if err != nil {
+		writeJSON(w, nil, err)
+		return
+	}
+	resp := map[string]any{"job": jobID, "site": site.Key}
+	if body.Wait <= 0 {
+		writeJSON(w, resp, nil)
+		return
+	}
+	if body.Wait > 300 {
+		body.Wait = 300
+	}
+	deadline := time.Now().Add(time.Duration(body.Wait) * time.Second)
+	for time.Now().Before(deadline) {
+		j, runID, err := s.st.JobByID(r.Context(), jobID)
+		if err != nil {
+			writeJSON(w, nil, err)
+			return
+		}
+		resp["state"] = j.State
+		resp["detail"] = j.Detail
+		if j.State == "done" || j.State == "failed" {
+			if runID > 0 {
+				run, rerr := s.st.RunByID(r.Context(), runID)
+				if rerr == nil {
+					resp["run_id"] = runID
+					resp["run"] = run
+				}
+			}
+			writeJSON(w, resp, nil)
+			return
+		}
+		select {
+		case <-r.Context().Done():
+			writeJSON(w, resp, nil)
+			return
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+	resp["state"] = "timeout"
+	writeJSON(w, resp, nil)
+}
+
+// job returns one job + its run id for polling clients.
+func (s *Server) job(w http.ResponseWriter, r *http.Request) {
+	var id int64
+	if _, err := fmt_Sscanf(r.PathValue("id"), &id); err != nil {
+		writeJSON(w, nil, err)
+		return
+	}
+	j, runID, err := s.st.JobByID(r.Context(), id)
+	if err != nil {
+		writeJSON(w, nil, err)
+		return
+	}
+	writeJSON(w, map[string]any{"job": j, "run_id": runID}, nil)
+}
 
 type errString string
 

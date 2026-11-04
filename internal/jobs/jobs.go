@@ -76,6 +76,7 @@ func (r *Runner) exec(ctx context.Context, jobID int64) {
 		r.st.JobState(ctx, jobID, "failed", err.Error())
 		return
 	}
+	r.st.SetJobRun(ctx, jobID, runID)
 	r.st.JobState(ctx, jobID, "done",
 		fmt.Sprintf("run %d: LCP %s ms", runID, metricSummary(result)))
 }
