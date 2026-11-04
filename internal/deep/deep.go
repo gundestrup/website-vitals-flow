@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/input"
 	"github.com/chromedp/chromedp"
 )
 
@@ -24,6 +26,8 @@ type Attribution struct {
 	LCPSubparts []string `json:"lcp_subparts,omitempty"`
 	CLSItems    []string `json:"cls_items,omitempty"`
 	INPms       *float64 `json:"inp_ms,omitempty"`
+	INPTarget   string   `json:"inp_target,omitempty"`
+	INPType     string   `json:"inp_type,omitempty"`
 }
 
 const wvCollect = `(() => new Promise(done => {
@@ -52,7 +56,12 @@ const wvCollect = `(() => new Promise(done => {
         'source=' + (node ? node.tagName + (node.id ? '#' + node.id : '') : '')
       ];
     }, {reportAllChanges: true});
-    webVitals.onINP(m => { out.inp_ms = m.value; }, {reportAllChanges: true});
+    webVitals.onINP(m => {
+      out.inp_ms = m.value;
+      const a = m.attribution || {};
+      if (a.interactionTarget) out.inp_target = String(a.interactionTarget).slice(0, 80);
+      if (a.interactionType) out.inp_type = a.interactionType;
+    }, {reportAllChanges: true});
     // web-vitals flushes reports on visibilitychange — synthesize it so
     // a settled headless page still emits LCP/CLS immediately.
     try { document.dispatchEvent(new Event('visibilitychange')); } catch (_) {}
@@ -75,6 +84,20 @@ func CollectAttribution(ctx context.Context, url string) (*Attribution, error) {
 		chromedp.Sleep(1500*time.Millisecond)); err != nil {
 		return nil, err
 	}
+	// lab-INP: a trusted input event makes Event Timing emit real
+	// interaction entries — web-vitals can then attribute the
+	// interaction's target/type/next-paint delay.
+	chromedp.Run(tab, chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
+		for _, ev := range []input.DispatchMouseEventParams{
+			{Type: input.DispatchMouseEventTypeMousePressed, X: 100, Y: 100, Button: input.MouseButtonLeft, ClickCount: 1},
+			{Type: input.DispatchMouseEventTypeMouseReleased, X: 100, Y: 100, Button: input.MouseButtonLeft, ClickCount: 1},
+		} {
+			if _, err := cdp.Call(ctx, t, input.DispatchMouseEvent, ev); err != nil {
+				return err
+			}
+		}
+		return nil
+	}))
 	if _, err := chromedp.Run(tab, chromedp.Evaluate[any](wvJS)); err != nil {
 		return nil, fmt.Errorf("inject web-vitals: %w", err)
 	}

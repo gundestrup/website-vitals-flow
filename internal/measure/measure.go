@@ -46,6 +46,7 @@ type Finding struct {
 	Category string   `json:"category"`
 	Title    string   `json:"title"`
 	Detail   string   `json:"detail"`
+	Link     string   `json:"link,omitempty"` // how to improve
 }
 
 // Response is one observed network response.

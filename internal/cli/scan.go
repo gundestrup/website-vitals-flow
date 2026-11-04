@@ -224,5 +224,8 @@ func printSummary(res *measure.Result) {
 		len(last.Responses), last.DOMNodes, float64(last.JSHeap)/1048576)
 	for _, f := range res.Findings {
 		fmt.Printf("  [%s] %s\n", f.Severity, f.Title)
+		if f.Link != "" {
+			fmt.Printf("        → %s\n", f.Link)
+		}
 	}
 }

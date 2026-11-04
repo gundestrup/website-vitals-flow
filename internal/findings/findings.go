@@ -21,6 +21,27 @@ const (
 	Poor = measure.SevPoor
 )
 
+var links = map[string]string{
+	"lcp":          "https://web.dev/articles/optimize-lcp",
+	"tbt":          "https://web.dev/articles/optimize-tbt",
+	"ttfb":         "https://web.dev/articles/optimize-ttfb",
+	"cls":          "https://web.dev/articles/optimize-cls",
+	"fcp":          "https://web.dev/articles/fcp",
+	"encoding":     "https://web.dev/articles/optimizing-content-efficiency-http-caching",
+	"brotli":       "https://developer.chrome.com/docs/performance/brotli",
+	"cache":        "https://web.dev/articles/http-cache",
+	"h2":           "https://web.dev/articles/performance-http2",
+	"h3":           "https://developer.chrome.com/docs/performance/http3",
+	"tls":          "https://web.dev/articles/why-https-matters",
+	"requests":     "https://web.dev/articles/resource-count",
+	"weight":       "https://web.dev/articles/reduce-network-payloads-using-text-compression",
+	"domsize":      "https://developer.chrome.com/docs/lighthouse/performance/dom-size",
+	"jsheap":       "https://developer.chrome.com/docs/devtools/memory-problems",
+	"img_oversize": "https://web.dev/articles/serve-responsive-images",
+	"img_format":   "https://web.dev/articles/serve-images-webp",
+	"inp":          "https://web.dev/articles/optimize-inp",
+}
+
 // Analyze evaluates a completed measurement and returns findings,
 // worst-severity first.
 func Analyze(res *measure.Result) []Finding {
@@ -177,6 +198,9 @@ func Analyze(res *measure.Result) []Finding {
 			Detail: "heavy JS memory usage correlates with long tasks"})
 	}
 
+	for i := range out {
+		out[i].Link = links[out[i].ID]
+	}
 	// severity sort: poor > warn > info
 	order := map[Severity]int{Poor: 0, Warn: 1, Info: 2}
 	for i := 0; i < len(out); i++ {
