@@ -15,7 +15,14 @@ Lighthouse audits, PSI). Single Go binary, SQLite state.
     ./bin/wvf serve                             # dashboard + scheduler (127.0.0.1:8420)
     ./bin/wvf doctor                            # engine availability
 
+## Dashboard
+
+![dashboard](docs/img/dashboard.png)
+
 ## API (IDE/agent-callable)
+
+Full reference: [docs/api.md](docs/api.md) — includes VS Code tasks.json
+setup and notes on a future extension/MCP wrapper.
 
     POST /api/scan      {"url": "...", "wait": 90, "deep": true}  # sync or async
     GET  /api/jobs/{id}                              # poll → run_id

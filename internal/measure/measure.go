@@ -29,6 +29,26 @@ type Response struct {
 	CacheControl    string            `json:"cache_control,omitempty"`
 	EncodedBytes    int64             `json:"encoded_bytes"`
 	Headers         map[string]string `json:"headers,omitempty"`
+	Timing          *Timing           `json:"timing,omitempty"`
+}
+
+// Timing is the per-request waterfall breakdown in ms.
+type Timing struct {
+	DNS       float64 `json:"dns_ms,omitempty"`
+	Connect   float64 `json:"connect_ms,omitempty"`
+	SSL       float64 `json:"ssl_ms,omitempty"`
+	Send      float64 `json:"send_ms,omitempty"`
+	Wait      float64 `json:"wait_ms,omitempty"` // server TTFB for this request
+	Receive   float64 `json:"receive_ms,omitempty"`
+	Total     float64 `json:"total_ms,omitempty"`
+	totalFrom float64 // monotonic requestTime, unexported
+}
+
+func nonneg(f float64) float64 {
+	if f < 0 {
+		return 0
+	}
+	return f
 }
 
 // Sample is the vitals data from a single page load.
@@ -135,21 +155,52 @@ func loadOnce(ctx context.Context, url string, settle time.Duration) (*Sample, e
 	defer cancel()
 
 	var responses []Response
+	pending := map[string]int{}
 	if err := chromedp.Listen(tabCtx, func(ev any) {
-		e, ok := ev.(*network.EventResponseReceived)
-		if !ok {
-			return
+		switch e := ev.(type) {
+		case *network.EventRequestWillBeSent:
+			responses = append(responses, Response{URL: e.Request.URL})
+			pending[e.RequestID.String()] = len(responses) - 1
+		case *network.EventResponseReceived:
+			i, ok := pending[e.RequestID.String()]
+			if !ok {
+				return
+			}
+			r := &responses[i]
+			r.URL = e.Response.URL
+			r.Protocol = e.Response.Protocol
+			r.Status = e.Response.Status
+			r.MimeType = e.Response.MimeType
+			r.ContentEncoding = header(e.Response.Headers, "content-encoding")
+			r.CacheControl = header(e.Response.Headers, "cache-control")
+			r.Headers = headers(e.Response.Headers)
+			r.EncodedBytes = int64(e.Response.EncodedDataLength)
+			if t := e.Response.Timing; t != nil {
+				rt := t.RequestTime * 1000 // monotonic ms
+				r.Timing = &Timing{
+					DNS:     nonneg(t.DNSEnd - t.DNSStart),
+					Connect: nonneg(t.ConnectEnd - t.ConnectStart),
+					SSL:     nonneg(t.SslEnd - t.SslStart),
+					Send:    nonneg(t.SendEnd - t.SendStart),
+					Wait:    nonneg(t.ReceiveHeadersEnd - t.SendEnd),
+				}
+				r.Timing.totalFrom = rt
+			}
+		case *network.EventLoadingFinished:
+			i, ok := pending[e.RequestID.String()]
+			if !ok {
+				return
+			}
+			r := &responses[i]
+			if r.EncodedBytes == 0 {
+				r.EncodedBytes = int64(e.EncodedDataLength)
+			}
+			if r.Timing != nil {
+				fin := float64(e.Timestamp) * 1000
+				r.Timing.Total = float64(fin) - r.Timing.totalFrom
+				r.Timing.Receive = nonneg(r.Timing.Total - (r.Timing.DNS + r.Timing.Connect + r.Timing.SSL + r.Timing.Send + r.Timing.Wait))
+			}
 		}
-		responses = append(responses, Response{
-			URL:             e.Response.URL,
-			Protocol:        e.Response.Protocol,
-			Status:          e.Response.Status,
-			MimeType:        e.Response.MimeType,
-			ContentEncoding: header(e.Response.Headers, "content-encoding"),
-			CacheControl:    header(e.Response.Headers, "cache-control"),
-			Headers:         headers(e.Response.Headers),
-			EncodedBytes:    int64(e.Response.EncodedDataLength),
-		})
 	}); err != nil {
 		return nil, fmt.Errorf("listen: %w", err)
 	}
