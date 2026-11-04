@@ -19,7 +19,7 @@ func open(t *testing.T) *Store {
 func TestRetentionKeepLast(t *testing.T) {
 	s := open(t)
 	ctx := context.Background()
-	site, err := s.UpsertSite(ctx, "k", "http://k", "", "", 2, 0, false)
+	site, err := s.UpsertSite(ctx, "k", "http://k", "", "", 2, 0, false, "")
 	if err != nil {
 		t.Fatal(err)
 	}

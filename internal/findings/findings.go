@@ -189,6 +189,40 @@ func Analyze(res *measure.Result) []Finding {
 	return out
 }
 
+// ParseOnly turns "lcp,cls,http" into a set. Empty = all stages.
+func ParseOnly(csv string) map[string]bool {
+	if csv == "" {
+		return nil
+	}
+	out := map[string]bool{}
+	for _, p := range strings.Split(csv, ",") {
+		out[strings.TrimSpace(p)] = true
+	}
+	return out
+}
+
+// Want reports whether a pipeline stage runs under the only-set.
+func Want(only map[string]bool, stage string) bool {
+	if only == nil {
+		return true
+	}
+	return only[stage]
+}
+
+// Filter drops findings not in the only-set (matched by id or category).
+func Filter(fs []Finding, only map[string]bool) []Finding {
+	if only == nil {
+		return fs
+	}
+	var out []Finding
+	for _, f := range fs {
+		if only[f.ID] || only[f.Category] {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
 func isText(m string) bool {
 	return strings.HasPrefix(m, "text/") || strings.Contains(m, "javascript") ||
 		strings.Contains(m, "json") || strings.Contains(m, "svg") || m == ""

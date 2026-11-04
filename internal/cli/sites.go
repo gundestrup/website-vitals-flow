@@ -45,13 +45,14 @@ func sitesCmd() *cobra.Command {
 			keep, _ := cmd.Flags().GetInt("keep-last")
 			maxAge, _ := cmd.Flags().GetInt("max-age-days")
 			deep, _ := cmd.Flags().GetBool("deep")
+			only, _ := cmd.Flags().GetString("only")
 			if keep <= 0 {
 				keep = cfg.KeepLast
 			}
 			if maxAge <= 0 {
 				maxAge = cfg.MaxAgeDays
 			}
-			site, err := st.UpsertSite(ctx0, key, canon, label, schedule, keep, maxAge, deep)
+			site, err := st.UpsertSite(ctx0, key, canon, label, schedule, keep, maxAge, deep, only)
 			if err != nil {
 				return err
 			}
@@ -68,6 +69,7 @@ func sitesCmd() *cobra.Command {
 	add.Flags().Int("keep-last", 0, "runs kept per site (default 100)")
 	add.Flags().Int("max-age-days", 0, "days before runs expire (default 56)")
 	add.Flags().Bool("deep", false, "deep scans (attribution+lighthouse) for this site")
+	add.Flags().String("only", "", "comma list of checks to run (empty = all)")
 
 	list := &cobra.Command{
 		Use: "list", Short: "List sites",
@@ -82,10 +84,10 @@ func sitesCmd() *cobra.Command {
 				return err
 			}
 			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-			fmt.Fprintln(w, "KEY\tURL\tSCHEDULE\tKEEP\tMAX AGE")
+			fmt.Fprintln(w, "KEY\tURL\tSCHEDULE\tKEEP\tAGE\tDEEP\tONLY")
 			for _, s := range sites {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%dd\n",
-					s.Key, s.URL, s.Schedule, s.KeepLast, s.MaxAgeDays)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%dd\t%v\t%s\n",
+					s.Key, s.URL, s.Schedule, s.KeepLast, s.MaxAgeDays, s.Deep, s.Only)
 			}
 			return w.Flush()
 		},

@@ -63,7 +63,7 @@ func scanCmd() *cobra.Command {
 			}
 			defer stop()
 			started := time.Now()
-			only := onlySet(onlyCSV)
+			only := findings.ParseOnly(onlyCSV)
 			res, err := measure.Run(browser, args[0], cfg.Samples, settle)
 			if err != nil {
 				return err
@@ -71,7 +71,7 @@ func scanCmd() *cobra.Command {
 			if res.BrowserVersion == "" {
 				res.BrowserVersion = ver
 			}
-			if want(only, "http") {
+			if findings.Want(only, "http") {
 				if hc, herr := httpcheck.Probe(ctx, res.URL); herr == nil {
 					var assets []httpcheck.Asset
 					if n := len(res.Samples); n > 0 {
@@ -84,7 +84,7 @@ func scanCmd() *cobra.Command {
 					res.HTTP3 = http3.Probe(ctx, res.URL, hc.AltSvc)
 				}
 			}
-			if deepMode && want(only, "deep") {
+			if deepMode && findings.Want(only, "deep") {
 				if a, aerr := deep.CollectAttribution(browser, res.URL); aerr == nil {
 					res.Attribution = a
 				} else {
@@ -100,7 +100,7 @@ func scanCmd() *cobra.Command {
 					fmt.Fprintln(os.Stderr, "warn: lighthouse not on PATH — skipping audits")
 				}
 			}
-			res.Findings = filterFindings(findings.Analyze(res), only)
+			res.Findings = findings.Filter(findings.Analyze(res), only)
 			if psiMode {
 				if r, perr := psi.Fetch(ctx, res.URL, cfg.PSIKey); perr == nil {
 					res.PSI = r
@@ -193,46 +193,6 @@ out.innerHTML='<p>'+DATA.url+' — '+DATA.browser_version+'</p>'
 s.responses.map(r=>r.protocol+' '+r.status+' '+(r.content_encoding||'-')+' '+r.encoded_bytes+'B '+r.url.slice(0,90)).join('
 ')+'</pre>';
 </script></body></html>`
-
-func onlySet(csv string) map[string]bool {
-	if csv == "" {
-		return nil
-	}
-	out := map[string]bool{}
-	for _, p := range strings.Split(csv, ",") {
-		out[strings.TrimSpace(p)] = true
-	}
-	return out
-}
-
-func want(only map[string]bool, stage string) bool {
-	if only == nil {
-		return true
-	}
-	for k := range only {
-		if k == stage || k == "http" && stage == "http" {
-			return true
-		}
-	}
-	return false
-}
-
-func filterFindings(fs []measure.Finding, only map[string]bool) []measure.Finding {
-	if only == nil {
-		return fs
-	}
-	ids := map[string]bool{}
-	for k := range only {
-		ids[k] = true
-	}
-	var out []measure.Finding
-	for _, f := range fs {
-		if ids[f.ID] || ids[f.Category] {
-			out = append(out, f)
-		}
-	}
-	return out
-}
 
 func printSummary(res *measure.Result) {
 	n := len(res.Samples)

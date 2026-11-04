@@ -107,10 +107,10 @@ func (s *Store) SiteByID(ctx context.Context, id int64) (*Site, error) {
 	var created string
 	var deepInt int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, key, url, label, schedule, keep_last, max_age_days, created_at, COALESCE(deep,0)
+		`SELECT id, key, url, label, schedule, keep_last, max_age_days, created_at, COALESCE(deep,0), COALESCE("only",'')
 		 FROM sites WHERE id=?`, id).
 		Scan(&site.ID, &site.Key, &site.URL, &site.Label, &site.Schedule,
-			&site.KeepLast, &site.MaxAgeDays, &created, &deepInt)
+			&site.KeepLast, &site.MaxAgeDays, &created, &deepInt, &site.Only)
 	if err != nil {
 		return nil, err
 	}

@@ -112,19 +112,22 @@ func RunSiteScan(ctx context.Context, st *store.Store, cfg config.Config,
 		res.BrowserVersion = ver
 	}
 	progress("http checks")
-	if hc, herr := httpcheck.Probe(scanCtx, res.URL); herr == nil {
-		var assets []httpcheck.Asset
-		if n := len(res.Samples); n > 0 {
-			for _, rsp := range res.Samples[n-1].Responses {
-				assets = append(assets, httpcheck.Asset{URL: rsp.URL, Status: rsp.Status, Headers: rsp.Headers})
+	only := findings.ParseOnly(site.Only)
+	if findings.Want(only, "http") {
+		if hc, herr := httpcheck.Probe(scanCtx, res.URL); herr == nil {
+			var assets []httpcheck.Asset
+			if n := len(res.Samples); n > 0 {
+				for _, rsp := range res.Samples[n-1].Responses {
+					assets = append(assets, httpcheck.Asset{URL: rsp.URL, Status: rsp.Status, Headers: rsp.Headers})
+				}
 			}
+			hc.Cache = httpcheck.CacheVerdicts(assets)
+			res.HTTP = hc
+			progress("h3 probe")
+			res.HTTP3 = http3.Probe(scanCtx, res.URL, hc.AltSvc)
 		}
-		hc.Cache = httpcheck.CacheVerdicts(assets)
-		res.HTTP = hc
-		progress("h3 probe")
-		res.HTTP3 = http3.Probe(scanCtx, res.URL, hc.AltSvc)
 	}
-	if deepMode {
+	if deepMode && findings.Want(only, "deep") {
 		progress("web-vitals attribution")
 		if a, aerr := deep.CollectAttribution(browser, res.URL); aerr == nil {
 			res.Attribution = a
@@ -137,7 +140,7 @@ func RunSiteScan(ctx context.Context, st *store.Store, cfg config.Config,
 		}
 	}
 	progress("findings")
-	res.Findings = findings.Analyze(res)
+	res.Findings = findings.Filter(findings.Analyze(res), only)
 	progress("storing")
 	runID, err := Persist(ctx, st, site, res, started)
 	return res, runID, err

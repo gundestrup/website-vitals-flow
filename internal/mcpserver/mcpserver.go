@@ -42,6 +42,7 @@ var tools = []map[string]any{
 			"url":     map[string]string{"type": "string", "description": "URL to scan (http://localhost:3000, https://example.com)"},
 			"deep":    map[string]string{"type": "boolean", "description": "also run web-vitals attribution + lighthouse"},
 			"samples": map[string]string{"type": "integer", "description": "loads per scan (default from config)"},
+			"only":    map[string]string{"type": "string", "description": "comma list to focus: lcp,cls,tbt,ttfb,fcp,http,deep,images"},
 		}, "required": []string{"url"}}},
 	{"name": "sites", "description": "List monitored sites.",
 		"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}}},
@@ -116,6 +117,7 @@ func callTool(ctx context.Context, st *store.Store, cfg config.Config,
 		Limit   int    `json:"limit"`
 		Deep    bool   `json:"deep"`
 		Samples int    `json:"samples"`
+		Only    string `json:"only"`
 	}
 	json.Unmarshal(p.Arguments, &args)
 
@@ -136,6 +138,9 @@ func callTool(ctx context.Context, st *store.Store, cfg config.Config,
 		defer mu.Unlock()
 		if args.Samples > 0 {
 			cfg.Samples = args.Samples
+		}
+		if args.Only != "" {
+			site.Only = args.Only // per-request override of the site default
 		}
 		res, runID, err := jobs.RunSiteScan(ctx, st, cfg, site, progress, args.Deep)
 		if err != nil {
