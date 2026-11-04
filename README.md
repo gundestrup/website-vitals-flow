@@ -21,8 +21,9 @@ Lighthouse audits, PSI). Single Go binary, SQLite state.
 
 ## API (IDE/agent-callable)
 
-Full reference: [docs/api.md](docs/api.md) — includes VS Code tasks.json
-setup and notes on a future extension/MCP wrapper.
+Full reference: [docs/api.md](docs/api.md) — REST endpoints, VS Code
+tasks.json setup, and `wvf mcp`: an MCP stdio server exposing
+scan/history/run/prune as native agent tools.
 
     POST /api/scan      {"url": "...", "wait": 90, "deep": true}  # sync or async
     GET  /api/jobs/{id}                              # poll → run_id

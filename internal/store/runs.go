@@ -10,24 +10,24 @@ import (
 
 // Run is one stored measurement.
 type Run struct {
-	ID             int64
-	SiteID         int64
-	Engine         string
-	Trigger        string
-	Status         string
-	Error          string
-	StartedAt      time.Time
-	FinishedAt     time.Time
-	BrowserVersion string
-	TTFBms         float64
-	FCPms          *float64
-	LCPms          *float64
-	CLS            float64
-	TBTms          float64
-	RequestCount   int
-	PageBytes      int64
-	HTTPProtocol   string
-	DetailJSON     string
+	ID             int64     `json:"id"`
+	SiteID         int64     `json:"site_id"`
+	Engine         string    `json:"engine"`
+	Trigger        string    `json:"trigger"`
+	Status         string    `json:"status"`
+	Error          string    `json:"error,omitempty"`
+	StartedAt      time.Time `json:"started_at"`
+	FinishedAt     time.Time `json:"finished_at"`
+	BrowserVersion string    `json:"browser_version"`
+	TTFBms         float64   `json:"ttfb_ms"`
+	FCPms          *float64  `json:"fcp_ms,omitempty"`
+	LCPms          *float64  `json:"lcp_ms,omitempty"`
+	CLS            float64   `json:"cls"`
+	TBTms          float64   `json:"tbt_ms"`
+	RequestCount   int       `json:"request_count"`
+	PageBytes      int64     `json:"page_bytes"`
+	HTTPProtocol   string    `json:"http_protocol"`
+	DetailJSON     string    `json:"detail_json"`
 }
 
 // InsertRun stores a run and applies the site's retention rules in the

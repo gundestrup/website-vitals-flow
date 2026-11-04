@@ -56,10 +56,23 @@ Bind to a key or run via Terminal → Run Task. Extend with `--deep` or
 the trend) — worth it only if you want in-editor charts. The dashboard
 at `http://127.0.0.1:8420` covers that today.
 
-**AI IDEs / agents** (Devin, Cursor, Cline): give the agent this file +
-the API is directly callable via its terminal/HTTP tools — this is the
-integration the API was designed for. An MCP wrapper (`wvf mcp`) would
-be the native-agent option if direct tool use proves awkward.
+## MCP server (native agent tools)
+
+`wvf mcp` speaks MCP over stdio — point any MCP client at the binary:
+
+```json
+{"mcpServers": {"wvf": {
+  "command": "/path/to/bin/wvf", "args": ["mcp"],
+  "env": {"WVF_STATE_DB": "/path/to/state.db"}}}}
+```
+
+Tools: `scan {url, deep, samples}` (synchronous, returns metrics +
+run_id), `sites`, `history {site, limit}`, `run {id}` (full detail incl.
+per-request timing + findings), `prune`. Works in Devin, Cursor, Claude
+Desktop — no per-IDE code needed.
+
+**AI IDEs / agents** that don't speak MCP: give the agent this file —
+the REST API is directly callable via its terminal/HTTP tools.
 
 ## Errors
 

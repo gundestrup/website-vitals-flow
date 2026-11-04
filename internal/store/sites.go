@@ -9,15 +9,15 @@ import (
 
 // Site is one monitored (or one-shot-scanned) target.
 type Site struct {
-	ID         int64
-	Key        string
-	URL        string
-	Label      string
-	Schedule   string
-	KeepLast   int
-	MaxAgeDays int
-	CreatedAt  time.Time
-	Deep       bool
+	ID         int64     `json:"id"`
+	Key        string    `json:"key"`
+	URL        string    `json:"url"`
+	Label      string    `json:"label,omitempty"`
+	Schedule   string    `json:"schedule,omitempty"`
+	KeepLast   int       `json:"keep_last"`
+	MaxAgeDays int       `json:"max_age_days"`
+	CreatedAt  time.Time `json:"created_at"`
+	Deep       bool      `json:"deep"`
 }
 
 // GetOrCreateSite returns the site for key, creating it with the given
