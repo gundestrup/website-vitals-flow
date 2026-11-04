@@ -13,6 +13,7 @@ import (
 	"github.com/chromedp/cdproto/performance"
 	"github.com/chromedp/chromedp"
 
+	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/deep"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/http3"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/httpcheck"
 )
@@ -50,6 +51,8 @@ type Result struct {
 	BrowserVersion string            `json:"browser_version"`
 	HTTP           *httpcheck.Result `json:"http_checks,omitempty"`
 	HTTP3          *http3.Result     `json:"http3,omitempty"`
+	Attribution    *deep.Attribution `json:"attribution,omitempty"`
+	Lighthouse     *deep.LHReport    `json:"lighthouse,omitempty"`
 	Samples        []Sample          `json:"samples"`
 }
 

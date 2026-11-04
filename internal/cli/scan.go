@@ -11,6 +11,7 @@ import (
 
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/chrome"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
+	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/deep"
 
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/http3"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/httpcheck"
@@ -22,12 +23,13 @@ import (
 
 func scanCmd() *cobra.Command {
 	var (
-		cfgPath string
-		samples int
-		timeout time.Duration
-		settle  time.Duration
-		asJSON  bool
-		htmlOut string
+		cfgPath  string
+		samples  int
+		timeout  time.Duration
+		settle   time.Duration
+		asJSON   bool
+		htmlOut  string
+		deepMode bool
 	)
 	cmd := &cobra.Command{
 		Use:   "scan <url>",
@@ -74,6 +76,22 @@ func scanCmd() *cobra.Command {
 				res.HTTP = hc
 				res.HTTP3 = http3.Probe(ctx, res.URL, hc.AltSvc)
 			}
+			if deepMode {
+				if a, aerr := deep.CollectAttribution(browser); aerr == nil {
+					res.Attribution = a
+				} else {
+					fmt.Fprintf(os.Stderr, "warn: attribution: %v\n", aerr)
+				}
+				if bin, berr := deep.FindBin(); berr == nil {
+					if lh, lerr := deep.Lighthouse(ctx, bin, res.URL); lerr == nil {
+						res.Lighthouse = lh
+					} else {
+						fmt.Fprintf(os.Stderr, "warn: lighthouse: %v\n", lerr)
+					}
+				} else {
+					fmt.Fprintln(os.Stderr, "warn: lighthouse not on PATH — skipping audits")
+				}
+			}
 			if err := persist(ctx, cfg, res, started); err != nil {
 				fmt.Fprintf(os.Stderr, "warn: store run: %v\n", err)
 			}
@@ -98,6 +116,7 @@ func scanCmd() *cobra.Command {
 	cmd.Flags().DurationVar(&settle, "settle", 1500*time.Millisecond, "post-load wait for late LCP/CLS")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit full result as JSON")
 	cmd.Flags().StringVar(&htmlOut, "html", "", "write self-contained HTML report to file")
+	cmd.Flags().BoolVar(&deepMode, "deep", false, "add web-vitals attribution + lighthouse audits when available")
 	return cmd
 }
 
