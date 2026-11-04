@@ -122,6 +122,35 @@ func Analyze(res *measure.Result) []Finding {
 			Detail: "https required for h2/h3, brotli, and modern browser features"})
 	}
 
+	// --- images: oversized serving + legacy formats ---
+	var oversized, legacy []string
+	for _, im := range s.Images {
+		if im.NatW > 0 && im.DispW > 0 && im.NatW > 2*im.DispW && im.Bytes > 40<<10 {
+			oversized = append(oversized,
+				fmt.Sprintf("%dx%d shown at %dx%d (%s)",
+					im.NatW, im.NatH, im.DispW, im.DispH, short(im.Src)))
+		}
+		f := strings.ToLower(im.Format)
+		if (strings.Contains(f, "jpeg") || strings.Contains(f, "png") ||
+			strings.HasSuffix(im.Src, ".jpg") || strings.HasSuffix(im.Src, ".png")) &&
+			im.Bytes > 20<<10 {
+			legacy = append(legacy, fmt.Sprintf("%s (%s, %d KB)",
+				short(im.Src), im.Format, im.Bytes>>10))
+		}
+	}
+	if len(oversized) > 0 {
+		out = append(out, Finding{ID: "img_oversize", Severity: Warn, Category: "images",
+			Title: fmt.Sprintf("%d images served larger than displayed", len(oversized)),
+			Detail: strings.Join(oversized[:minI(3, len(oversized))], " · ") +
+				" — resize or srcset"})
+	}
+	if len(legacy) > 0 {
+		out = append(out, Finding{ID: "img_format", Severity: Info, Category: "images",
+			Title: fmt.Sprintf("%d images in jpeg/png — avif/webp ~30-50%% smaller", len(legacy)),
+			Detail: strings.Join(legacy[:minI(3, len(legacy))], " · ") +
+				" — serve via <picture> with format fallback"})
+	}
+
 	// --- page weight / DOM / JS ---
 	if len(s.Responses) > 75 {
 		out = append(out, Finding{ID: "requests", Severity: Warn, Category: "dom",

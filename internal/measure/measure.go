@@ -28,6 +28,17 @@ const (
 	SevPoor Severity = "poor"
 )
 
+// ImageInfo is one rendered <img>: natural vs displayed size.
+type ImageInfo struct {
+	Src    string `json:"src"`
+	NatW   int    `json:"natural_width"`
+	NatH   int    `json:"natural_height"`
+	DispW  int    `json:"display_width"`
+	DispH  int    `json:"display_height"`
+	Bytes  int64  `json:"bytes,omitempty"` // joined from response when known
+	Format string `json:"format,omitempty"`
+}
+
 // Finding is one best-practice issue + evidence + recommendation.
 type Finding struct {
 	ID       string   `json:"id"`
@@ -71,17 +82,18 @@ func nonneg(f float64) float64 {
 
 // Sample is the vitals data from a single page load.
 type Sample struct {
-	TTFBms    float64    `json:"ttfb_ms"`
-	FCPms     *float64   `json:"fcp_ms,omitempty"`
-	LCPms     *float64   `json:"lcp_ms,omitempty"`
-	LCPElem   string     `json:"lcp_element,omitempty"`
-	CLS       float64    `json:"cls"`
-	TBTms     float64    `json:"tbt_ms"`
-	DCLms     float64    `json:"dom_content_loaded_ms"`
-	LoadMs    float64    `json:"load_ms"`
-	JSHeap    int64      `json:"js_heap_bytes"`
-	DOMNodes  int64      `json:"dom_nodes"`
-	Responses []Response `json:"responses"`
+	TTFBms    float64     `json:"ttfb_ms"`
+	FCPms     *float64    `json:"fcp_ms,omitempty"`
+	LCPms     *float64    `json:"lcp_ms,omitempty"`
+	LCPElem   string      `json:"lcp_element,omitempty"`
+	CLS       float64     `json:"cls"`
+	TBTms     float64     `json:"tbt_ms"`
+	DCLms     float64     `json:"dom_content_loaded_ms"`
+	LoadMs    float64     `json:"load_ms"`
+	JSHeap    int64       `json:"js_heap_bytes"`
+	DOMNodes  int64       `json:"dom_nodes"`
+	Responses []Response  `json:"responses"`
+	Images    []ImageInfo `json:"images,omitempty"`
 }
 
 // Result is a complete measurement: samples + the Chrome version used.
@@ -137,6 +149,15 @@ const injectScript = `(() => {
 })()`
 
 // collectScript reads the observer buffer plus navigation timing post-load.
+const imagesScript = `([...document.images].map(i => ({
+  src: i.currentSrc || i.src || '',
+  natural_width: i.naturalWidth,
+  natural_height: i.naturalHeight,
+  display_width: i.clientWidth,
+  display_height: i.clientHeight,
+  loading: i.loading
+})))`
+
 const collectScript = `(() => {
   const nav = performance.getEntriesByType('navigation')[0] || {};
   const w = window.__wvf || {};
@@ -260,6 +281,17 @@ func loadOnce(ctx context.Context, url string, settle time.Duration) (*Sample, e
 	}); err != nil {
 		return nil, fmt.Errorf("performance metrics: %w", err)
 	}
+	images, _ := chromedp.Run(tabCtx, chromedp.Evaluate[[]ImageInfo](imagesScript))
+	byURL := map[string]*Response{}
+	for i := range responses {
+		byURL[responses[i].URL] = &responses[i]
+	}
+	for i := range images {
+		if r, ok := byURL[images[i].Src]; ok {
+			images[i].Bytes = r.EncodedBytes
+			images[i].Format = r.MimeType
+		}
+	}
 
 	s := &Sample{
 		CLS:       pm.CLS,
@@ -268,6 +300,7 @@ func loadOnce(ctx context.Context, url string, settle time.Duration) (*Sample, e
 		LCPms:     pm.LCP,
 		LCPElem:   pm.LCPElem,
 		Responses: responses,
+		Images:    images,
 	}
 	if pm.TTFB != nil {
 		s.TTFBms = *pm.TTFB

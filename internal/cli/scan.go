@@ -34,6 +34,7 @@ func scanCmd() *cobra.Command {
 		htmlOut  string
 		deepMode bool
 		psiMode  bool
+		onlyCSV  string
 	)
 	cmd := &cobra.Command{
 		Use:   "scan <url>",
@@ -62,6 +63,7 @@ func scanCmd() *cobra.Command {
 			}
 			defer stop()
 			started := time.Now()
+			only := onlySet(onlyCSV)
 			res, err := measure.Run(browser, args[0], cfg.Samples, settle)
 			if err != nil {
 				return err
@@ -69,18 +71,20 @@ func scanCmd() *cobra.Command {
 			if res.BrowserVersion == "" {
 				res.BrowserVersion = ver
 			}
-			if hc, herr := httpcheck.Probe(ctx, res.URL); herr == nil {
-				var assets []httpcheck.Asset
-				if n := len(res.Samples); n > 0 {
-					for _, r := range res.Samples[n-1].Responses {
-						assets = append(assets, httpcheck.Asset{URL: r.URL, Status: r.Status, Headers: r.Headers})
+			if want(only, "http") {
+				if hc, herr := httpcheck.Probe(ctx, res.URL); herr == nil {
+					var assets []httpcheck.Asset
+					if n := len(res.Samples); n > 0 {
+						for _, r := range res.Samples[n-1].Responses {
+							assets = append(assets, httpcheck.Asset{URL: r.URL, Status: r.Status, Headers: r.Headers})
+						}
 					}
+					hc.Cache = httpcheck.CacheVerdicts(assets)
+					res.HTTP = hc
+					res.HTTP3 = http3.Probe(ctx, res.URL, hc.AltSvc)
 				}
-				hc.Cache = httpcheck.CacheVerdicts(assets)
-				res.HTTP = hc
-				res.HTTP3 = http3.Probe(ctx, res.URL, hc.AltSvc)
 			}
-			if deepMode {
+			if deepMode && want(only, "deep") {
 				if a, aerr := deep.CollectAttribution(browser, res.URL); aerr == nil {
 					res.Attribution = a
 				} else {
@@ -96,7 +100,7 @@ func scanCmd() *cobra.Command {
 					fmt.Fprintln(os.Stderr, "warn: lighthouse not on PATH — skipping audits")
 				}
 			}
-			res.Findings = findings.Analyze(res)
+			res.Findings = filterFindings(findings.Analyze(res), only)
 			if psiMode {
 				if r, perr := psi.Fetch(ctx, res.URL, cfg.PSIKey); perr == nil {
 					res.PSI = r
@@ -130,6 +134,7 @@ func scanCmd() *cobra.Command {
 	cmd.Flags().StringVar(&htmlOut, "html", "", "write self-contained HTML report to file")
 	cmd.Flags().BoolVar(&deepMode, "deep", false, "add web-vitals attribution + lighthouse audits when available")
 	cmd.Flags().BoolVar(&psiMode, "psi", false, "also fetch PageSpeed Insights (public FQDNs only)")
+	cmd.Flags().StringVar(&onlyCSV, "only", "", "comma list to focus: lcp,cls,tbt,ttfb,fcp,http,deep — skips other checks")
 	return cmd
 }
 
@@ -188,6 +193,46 @@ out.innerHTML='<p>'+DATA.url+' — '+DATA.browser_version+'</p>'
 s.responses.map(r=>r.protocol+' '+r.status+' '+(r.content_encoding||'-')+' '+r.encoded_bytes+'B '+r.url.slice(0,90)).join('
 ')+'</pre>';
 </script></body></html>`
+
+func onlySet(csv string) map[string]bool {
+	if csv == "" {
+		return nil
+	}
+	out := map[string]bool{}
+	for _, p := range strings.Split(csv, ",") {
+		out[strings.TrimSpace(p)] = true
+	}
+	return out
+}
+
+func want(only map[string]bool, stage string) bool {
+	if only == nil {
+		return true
+	}
+	for k := range only {
+		if k == stage || k == "http" && stage == "http" {
+			return true
+		}
+	}
+	return false
+}
+
+func filterFindings(fs []measure.Finding, only map[string]bool) []measure.Finding {
+	if only == nil {
+		return fs
+	}
+	ids := map[string]bool{}
+	for k := range only {
+		ids[k] = true
+	}
+	var out []measure.Finding
+	for _, f := range fs {
+		if ids[f.ID] || ids[f.Category] {
+			out = append(out, f)
+		}
+	}
+	return out
+}
 
 func printSummary(res *measure.Result) {
 	n := len(res.Samples)
