@@ -1,26 +1,44 @@
-async function j(u,o){const r=await fetch(u,o);return r.json()}
-async function load(){
-  const sites=await j('/api/sites');
-  const tb=document.getElementById('sites');
-  tb.innerHTML='';
-  for(const s of sites||[]){
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td><a href=# onclick="runs('${s.key}');return false">${s.key}</a></td>
-      <td>${s.schedule||'manual'}</td><td id=last-${s.id}>-</td>
-      <td><button onclick="scan('${s.key}')">scan now</button></td>`;
-    tb.appendChild(tr);
-  }
-  const jobs=await j('/api/jobs');
-  document.getElementById('jobs').innerHTML=(jobs||[]).slice(0,5).map(x=>
-    `<div class=job>${x.state}: ${x.detail||''}</div>`).join('');
-}
-async function runs(key){
-  const r=await j('/api/sites/'+key+'/runs');
-  document.getElementById('runs').innerHTML=(r||[]).slice(0,10).map(x=>
-    `<div class=run>#${x.id} ${x.started_at} TTFB ${x.ttfb_ms|0}ms LCP ${x.lcp_ms?x.lcp_ms|0:'—'}ms CLS ${x.cls.toFixed(3)}</div>`).join('');
-}
-async function scan(key){
-  await j('/api/scan-now',{method:'POST',body:JSON.stringify({key})});
-  setTimeout(load,1000);
-}
-load(); setInterval(load,5000);
+document.addEventListener('alpine:init', () => {
+  Alpine.data('dash', () => ({
+    sites: [], last: {}, jobs: [], runs: [], sel: '', busy: false, chart: null,
+    fmt(v){ return v==null?'-':Math.round(v) },
+    async j(u,o){ const r=await fetch(u,o); return r.json() },
+    async load(){
+      this.sites = await this.j('/api/sites') || [];
+      this.jobs = await this.j('/api/jobs') || [];
+      for (const s of this.sites){
+        const rr = await this.j('/api/sites/'+s.key+'/runs');
+        if (rr && rr.length) this.last[s.key]=rr[0];
+      }
+    },
+    async open(key){
+      this.sel=key;
+      this.runs=(await this.j('/api/sites/'+key+'/runs'))||[];
+      this.draw();
+    },
+    async scan(key){
+      this.busy=true;
+      await this.j('/api/scan-now',{method:'POST',body:JSON.stringify({key})});
+      setTimeout(async()=>{ this.busy=false; await this.load(); if(this.sel==key) this.open(key); },2000);
+    },
+    draw(){
+      const rs=[...this.runs].reverse();
+      const per={};
+      for(const e of ['cdp','lighthouse','psi']){
+        per[e]=rs.filter(r=>r.engine===e);
+      }
+      const ds=[];
+      for(const e of Object.keys(per)){
+        if(!per[e].length) continue;
+        ds.push({label:e+' TTFB',data:per[e].map(r=>r.ttfb_ms),borderColor:'#888',tension:.3,hidden:true});
+        ds.push({label:e+' LCP',data:per[e].map(r=>r.lcp_ms),tension:.3});
+        ds.push({label:e+' FCP',data:per[e].map(r=>r.fcp_ms),borderDash:[4,4],tension:.3,hidden:true});
+      }
+      const labels=rs.map(r=>r.started_at.slice(5,16));
+      if(this.chart) this.chart.destroy();
+      this.chart=new Chart(document.getElementById('chart'),{type:'line',
+        data:{labels,datasets:ds},
+        options:{plugins:{legend:{display:true}},scales:{y:{title:{text:'ms',display:true}}}}});
+    }
+  }));
+});

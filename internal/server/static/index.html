@@ -1,8 +1,29 @@
-<!doctype html><html><head><meta charset=utf-8><title>wvf</title>
-<link rel=stylesheet href=/style.css></head><body>
-<h1>website-vitals-flow</h1>
-<div id=jobs></div>
-<table><thead><tr><th>site</th><th>schedule</th><th>last run</th><th></th></tr></thead>
-<tbody id=sites></tbody></table>
-<h2>recent runs</h2><div id=runs></div>
+<!doctype html><html><head><meta charset=utf-8><title>website-vitals-flow</title>
+<link rel=stylesheet href=/vendor/bulma.min.css><link rel=stylesheet href=/style.css></head>
+<body><section class=section><div class=container>
+<h1 class=title>website-vitals-flow</h1>
+<div id=app x-data="dash" x-init="load()">
+<div class=notification is-info is-light x-show="jobs.length" x-cloak>
+  <template x-for="j in jobs.slice(0,4)"><div x-text="j.state+': '+(j.detail||'')"></div></template>
+</div>
+<table class="table is-fullwidth is-hoverable"><thead>
+<tr><th>site</th><th>schedule</th><th>last TTFB</th><th>last LCP</th><th>last CLS</th><th></th></tr></thead>
+<tbody><template x-for="s in sites"><tr>
+  <td><a href="#" @click.prevent="open(s.key)" x-text="s.label||s.key"></a></td>
+  <td x-text="s.schedule||'manual'"></td>
+  <td x-text="fmt(last[s.key]&&last[s.key].ttfb_ms)+' ms'"></td>
+  <td x-text="fmt(last[s.key]&&last[s.key].lcp_ms)+' ms'"></td>
+  <td x-text="last[s.key]?last[s.key].cls.toFixed(3):'-'"></td>
+  <td><button class="button is-small" @click="scan(s.key)" x-bind:disabled="busy">scan now</button></td>
+</tr></template></tbody></table>
+<div x-show="sel"><h2 class=subtitle x-text="'trend — '+sel"></h2>
+  <canvas id=chart></canvas>
+  <table class="table is-fullwidth"><thead><tr><th>id</th><th>when</th><th>engine</th><th>ttfb</th><th>lcp</th><th>cls</th><th>tbt</th><th>proto</th></tr></thead>
+  <tbody><template x-for="r in runs"><tr>
+    <td x-text="r.ID"></td><td x-text="r.started_at.slice(0,16).replace('T',' ')"></td>
+    <td x-text="r.engine"></td><td x-text="fmt(r.ttfb_ms)"></td><td x-text="fmt(r.lcp_ms)"></td>
+    <td x-text="r.cls.toFixed(3)"></td><td x-text="fmt(r.tbt_ms)"></td><td x-text="r.http_protocol"></td>
+  </tr></template></tbody></table></div>
+</div></div></section>
+<script src=/vendor/chart.umd.js></script><script src=/vendor/cdn.min.js defer></script>
 <script src=/app.js></script></body></html>

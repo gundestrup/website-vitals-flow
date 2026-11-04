@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/chrome"
@@ -25,6 +27,7 @@ func scanCmd() *cobra.Command {
 		timeout time.Duration
 		settle  time.Duration
 		asJSON  bool
+		htmlOut string
 	)
 	cmd := &cobra.Command{
 		Use:   "scan <url>",
@@ -80,6 +83,12 @@ func scanCmd() *cobra.Command {
 				return enc.Encode(res)
 			}
 			printSummary(res)
+			if htmlOut != "" {
+				if err := writeHTMLReport(htmlOut, res); err != nil {
+					return err
+				}
+				fmt.Fprintf(os.Stderr, "report: %s\n", htmlOut)
+			}
 			return nil
 		},
 	}
@@ -88,6 +97,7 @@ func scanCmd() *cobra.Command {
 	cmd.Flags().DurationVar(&timeout, "timeout", 0, "whole-scan deadline (default 90s)")
 	cmd.Flags().DurationVar(&settle, "settle", 1500*time.Millisecond, "post-load wait for late LCP/CLS")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit full result as JSON")
+	cmd.Flags().StringVar(&htmlOut, "html", "", "write self-contained HTML report to file")
 	return cmd
 }
 
@@ -160,6 +170,40 @@ func persist(ctx context.Context, cfg config.Config, res *measure.Result, starte
 	fmt.Fprintf(os.Stderr, "stored run %d under site %s\n", id, site.Key)
 	return nil
 }
+
+func writeHTMLReport(path string, res *measure.Result) error {
+	data, err := json.Marshal(res)
+	if err != nil {
+		return err
+	}
+	safe := strings.ReplaceAll(string(data), "</", "<\\/")
+	html := strings.ReplaceAll(reportTmpl, "__REPORT_DATA__", safe)
+	if dir := filepath.Dir(path); dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+	return os.WriteFile(path, []byte(html), 0o644)
+}
+
+const reportTmpl = `<!doctype html><html><head><meta charset=utf-8><title>wvf report</title>
+<style>body{font-family:system-ui;max-width:900px;margin:2em auto;padding:0 1em}
+table{border-collapse:collapse;width:100%}td,th{padding:.35em;border-bottom:1px solid #ddd;text-align:left}
+pre{background:#f5f5f5;padding:1em;overflow:auto}</style></head><body>
+<h1>wvf report</h1><div id=out></div>
+<script>const DATA = __REPORT_DATA__;
+const s=DATA.samples[DATA.samples.length-1];
+out.innerHTML='<p>'+DATA.url+' — '+DATA.browser_version+'</p>'
++'<table><tr><th>metric</th><th>ms</th></tr>'
++'<tr><td>TTFB</td><td>'+Math.round(s.ttfb_ms)+'</td></tr>'
++'<tr><td>FCP</td><td>'+Math.round(s.fcp_ms||0)+'</td></tr>'
++'<tr><td>LCP</td><td>'+Math.round(s.lcp_ms||0)+' ('+(s.lcp_element||'')+')</td></tr>'
++'<tr><td>CLS</td><td>'+s.cls.toFixed(3)+'</td></tr>'
++'<tr><td>TBT</td><td>'+Math.round(s.tbt_ms)+'</td></tr></table>'
++'<h2>'+s.responses.length+' responses</h2><pre>'+
+s.responses.map(r=>r.protocol+' '+r.status+' '+(r.content_encoding||'-')+' '+r.encoded_bytes+'B '+r.url.slice(0,90)).join('
+')+'</pre>';
+</script></body></html>`
 
 func printSummary(res *measure.Result) {
 	n := len(res.Samples)

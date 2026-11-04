@@ -1,0 +1,9 @@
+{
+  "name": "wvf-assets",
+  "private": true,
+  "devDependencies": {
+    "@alpinejs/csp": "3.14.9",
+    "bulma": "1.0.3",
+    "chart.js": "4.5.0"
+  }
+}
