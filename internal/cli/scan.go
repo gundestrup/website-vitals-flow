@@ -77,7 +77,7 @@ func scanCmd() *cobra.Command {
 				res.HTTP3 = http3.Probe(ctx, res.URL, hc.AltSvc)
 			}
 			if deepMode {
-				if a, aerr := deep.CollectAttribution(browser); aerr == nil {
+				if a, aerr := deep.CollectAttribution(browser, res.URL); aerr == nil {
 					res.Attribution = a
 				} else {
 					fmt.Fprintf(os.Stderr, "warn: attribution: %v\n", aerr)

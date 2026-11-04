@@ -18,6 +18,7 @@ var wvJS string
 
 // Attribution is the web-vitals.js debugger payload.
 type Attribution struct {
+	Err         string   `json:"err,omitempty"`
 	LCPElement  string   `json:"lcp_element,omitempty"`
 	LCPSubparts []string `json:"lcp_subparts,omitempty"`
 	CLSItems    []string `json:"cls_items,omitempty"`
@@ -26,37 +27,52 @@ type Attribution struct {
 
 const wvCollect = `(() => new Promise(done => {
   const out = {};
+  if (typeof webVitals === 'undefined') { done({err: 'webVitals missing'}); return; }
   try {
     webVitals.onLCP(m => {
-      if (m.attribution) {
-        out.lcp_element = m.attribution.element || '';
-        const a = m.attribution;
-        out.lcp_subparts = [
-          'ttfb=' + Math.round(a.timeToFirstByte || 0),
-          'loadDelay=' + Math.round(a.resourceLoadDelay || 0),
-          'loadTime=' + Math.round(a.resourceLoadTime || 0),
-          'renderDelay=' + Math.round(a.elementRenderDelay || 0)
-        ];
-      }
+      const a = m.attribution || {};
+      out.lcp_element = a.element || '';
+      out.lcp_subparts = [
+        'ttfb=' + Math.round(a.timeToFirstByte || 0),
+        'loadDelay=' + Math.round(a.resourceLoadDelay || 0),
+        'loadTime=' + Math.round(a.resourceLoadTime || 0),
+        'renderDelay=' + Math.round(a.elementRenderDelay || 0)
+      ];
     }, {reportAllChanges: true});
     webVitals.onCLS(m => {
-      out.cls_items = (m.attribution?.largestShiftSource
-        ? [m.attribution.largestShiftSource.node ? 'node' : 'shift',
-           'value=' + (m.attribution.largestShiftValue ?? m.value)]
-        : []);
-    });
-    webVitals.onINP(m => { out.inp_ms = m.value; });
+      const a = m.attribution || {};
+      out.cls_items = [
+        'value=' + (a.largestShiftValue ?? m.value),
+        'source=' + (a.largestShiftSource ? String(a.largestShiftSource).slice(0, 80) : '')
+      ];
+    }, {reportAllChanges: true});
+    webVitals.onINP(m => { out.inp_ms = m.value; }, {reportAllChanges: true});
+    // web-vitals flushes reports on visibilitychange — synthesize it so
+    // a settled headless page still emits LCP/CLS immediately.
+    try { document.dispatchEvent(new Event('visibilitychange')); } catch (_) {}
   } catch (e) { out.err = String(e); }
-  setTimeout(() => done(out), 800);
-}))`
+  const t0 = performance.now();
+  const tick = () => {
+    if (out.lcp_element !== undefined || performance.now() - t0 > 3000) done(out);
+    else setTimeout(tick, 100);
+  };
+  setTimeout(tick, 50);
+}))()`
 
-// CollectAttribution injects the vendored attribution build into a
-// loaded page and returns the debugger payload (evaluates with await).
-func CollectAttribution(ctx context.Context) (*Attribution, error) {
-	if _, err := chromedp.Run(ctx, chromedp.Evaluate[any](wvJS)); err != nil {
+// CollectAttribution opens its own tab (sample tabs are closed after
+// measure.Run), navigates, injects the vendored attribution build, and
+// returns the debugger payload.
+func CollectAttribution(ctx context.Context, url string) (*Attribution, error) {
+	tab, tcancel := chromedp.NewContext(ctx)
+	defer tcancel()
+	if err := chromedp.Do(tab, chromedp.Navigate(url),
+		chromedp.Sleep(1500*time.Millisecond)); err != nil {
+		return nil, err
+	}
+	if _, err := chromedp.Run(tab, chromedp.Evaluate[any](wvJS)); err != nil {
 		return nil, fmt.Errorf("inject web-vitals: %w", err)
 	}
-	res, err := chromedp.Run(ctx,
+	res, err := chromedp.Run(tab,
 		chromedp.Evaluate[Attribution](wvCollect, chromedp.EvalAwaitPromise))
 	if err != nil {
 		return nil, err
