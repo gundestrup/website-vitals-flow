@@ -20,7 +20,7 @@ func rootCmd() *cobra.Command {
 		Short: "website-vitals-flow — contained localhost web vitals tester",
 		Long:  "Scan localhost or FQDN targets for web vitals, HTTP behaviour and audits. One binary, one SQLite file, one dashboard.",
 	}
-	root.AddCommand(scanCmd(), versionCmd(), sitesCmd(), pruneCmd(), reportCmd(), serveCmd())
+	root.AddCommand(scanCmd(), versionCmd(), sitesCmd(), pruneCmd(), reportCmd(), serveCmd(), doctorCmd())
 	return root
 }
 
