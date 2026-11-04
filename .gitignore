@@ -1,0 +1,7 @@
+bin/
+state.db*
+coverage.out
+test-report.json
+report/
+node_modules/
+.DS_Store
