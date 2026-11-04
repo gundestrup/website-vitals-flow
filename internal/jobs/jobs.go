@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/chrome"
@@ -169,6 +170,45 @@ func Persist(ctx context.Context, st *store.Store, site *store.Site,
 		HTTPProtocol: prot, DetailJSON: string(detail),
 	}
 	return st.InsertRun(ctx, run)
+}
+
+func mapS(in []measure.Sample, f func(measure.Sample) float64) []float64 {
+	out := make([]float64, len(in))
+	for i, s := range in {
+		out[i] = f(s)
+	}
+	return out
+}
+
+func mapP(in []measure.Sample, f func(measure.Sample) *float64) []*float64 {
+	out := make([]*float64, len(in))
+	for i, s := range in {
+		out[i] = f(s)
+	}
+	return out
+}
+
+func medF(v []float64) float64 {
+	if len(v) == 0 {
+		return 0
+	}
+	s := append([]float64(nil), v...)
+	sort.Float64s(s)
+	return s[len(s)/2]
+}
+
+func medP(v []*float64) *float64 {
+	var vals []float64
+	for _, p := range v {
+		if p != nil {
+			vals = append(vals, *p)
+		}
+	}
+	if len(vals) == 0 {
+		return nil
+	}
+	m := medF(vals)
+	return &m
 }
 
 func metricSummary(res *measure.Result) string {

@@ -12,6 +12,7 @@ import (
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/chrome"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/deep"
+	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/jobs"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/psi"
 
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/http3"
@@ -144,55 +145,7 @@ func persist(ctx context.Context, cfg config.Config, res *measure.Result, starte
 	if err != nil {
 		return err
 	}
-	last := res.Samples[len(res.Samples)-1]
-	detail, _ := json.Marshal(res)
-	var bytes int64
-	var pages int64
-	prot := ""
-	for _, r := range last.Responses {
-		bytes += r.EncodedBytes
-		if r.MimeType == "text/html" {
-			pages += r.EncodedBytes
-		}
-	}
-	if len(last.Responses) > 0 {
-		prot = last.Responses[0].Protocol
-	}
-	var ttfb, cls, tbt float64
-	var fcp, lcp *float64
-	n := float64(len(res.Samples))
-	for _, s := range res.Samples {
-		ttfb += s.TTFBms
-		cls += s.CLS
-		tbt += s.TBTms
-	}
-	run := &store.Run{
-		SiteID:         site.ID,
-		Engine:         "cdp",
-		Trigger:        "cli",
-		Status:         "ok",
-		StartedAt:      started,
-		FinishedAt:     time.Now(),
-		BrowserVersion: res.BrowserVersion,
-		TTFBms:         ttfb / n,
-		FCPms:          fcp,
-		LCPms:          lcp,
-		CLS:            cls / n,
-		TBTms:          tbt / n,
-		RequestCount:   len(last.Responses),
-		PageBytes:      bytes,
-		HTTPProtocol:   prot,
-		DetailJSON:     string(detail),
-	}
-	// median-ish headline values: use last sample's FCP/LCP
-	if last.FCPms != nil {
-		run.FCPms = last.FCPms
-	}
-	if last.LCPms != nil {
-		run.LCPms = last.LCPms
-	}
-	_ = pages
-	id, err := st.InsertRun(ctx, run)
+	id, err := jobs.Persist(ctx, st, site, res, started)
 	if err != nil {
 		return err
 	}
