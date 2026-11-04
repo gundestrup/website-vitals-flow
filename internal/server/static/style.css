@@ -1,0 +1,5 @@
+body{font-family:system-ui,sans-serif;max-width:900px;margin:2em auto;padding:0 1em}
+table{width:100%;border-collapse:collapse}
+td,th{text-align:left;padding:.4em;border-bottom:1px solid #ddd}
+.job,.run{font:13px/1.6 ui-monospace,monospace;color:#555}
+button{cursor:pointer}
