@@ -16,13 +16,18 @@ type Job struct {
 	QueuedAt   string
 	StartedAt  string
 	FinishedAt string
+	Deep       bool
 }
 
 // InsertJob enqueues a job row and returns its id.
-func (s *Store) InsertJob(ctx context.Context, kind string, siteID int64) (int64, error) {
+func (s *Store) InsertJob(ctx context.Context, kind string, siteID int64, deep bool) (int64, error) {
+	d := 0
+	if deep {
+		d = 1
+	}
 	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO jobs (kind, site_id, state, queued_at) VALUES (?,?, 'queued', ?)`,
-		kind, siteID, time.Now().UTC().Format(time.RFC3339))
+		`INSERT INTO jobs (kind, site_id, state, queued_at, deep) VALUES (?,?, 'queued', ?, ?)`,
+		kind, siteID, time.Now().UTC().Format(time.RFC3339), d)
 	if err != nil {
 		return 0, err
 	}
@@ -131,11 +136,14 @@ func (s *Store) JobByID(ctx context.Context, id int64) (*Job, int64, error) {
 	var j Job
 	var runID int64
 	var st, fi string
+	var deepInt int
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id, kind, site_id, state, detail, queued_at,
-		  COALESCE(started_at,''), COALESCE(finished_at,''), COALESCE(run_id,0)
+		  COALESCE(started_at,''), COALESCE(finished_at,''), COALESCE(run_id,0),
+		  COALESCE(deep,0)
 		 FROM jobs WHERE id=?`, id).Scan(&j.ID, &j.Kind, &j.SiteID, &j.State,
-		&j.Detail, &j.QueuedAt, &st, &fi, &runID)
+		&j.Detail, &j.QueuedAt, &st, &fi, &runID, &deepInt)
+	j.Deep = deepInt == 1
 	j.StartedAt, j.FinishedAt = st, fi
 	return &j, runID, err
 }

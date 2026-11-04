@@ -11,7 +11,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const schemaVersion = 2
+const schemaVersion = 3
 
 const schemaV1 = `
 CREATE TABLE IF NOT EXISTS sites (
@@ -93,6 +93,12 @@ func (s *Store) migrate(ctx context.Context) error {
 		if _, err := s.db.ExecContext(ctx,
 			`ALTER TABLE jobs ADD COLUMN run_id INTEGER`); err != nil {
 			return fmt.Errorf("schema v2: %w", err)
+		}
+	}
+	if v < 3 {
+		if _, err := s.db.ExecContext(ctx,
+			`ALTER TABLE jobs ADD COLUMN deep INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return fmt.Errorf("schema v3: %w", err)
 		}
 	}
 	if _, err := s.db.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version=%d", schemaVersion)); err != nil {

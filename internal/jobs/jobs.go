@@ -11,6 +11,7 @@ import (
 
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/chrome"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
+	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/deep"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/http3"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/httpcheck"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/measure"
@@ -31,8 +32,8 @@ func New(st *store.Store, cfg config.Config) *Runner {
 
 // Enqueue registers a job and offers it to the worker. kind is
 // "scan"; trigger lands on the run record (cli|manual|scheduled).
-func (r *Runner) Enqueue(ctx context.Context, siteID int64, kind string) (int64, error) {
-	id, err := r.st.InsertJob(ctx, kind, siteID)
+func (r *Runner) Enqueue(ctx context.Context, siteID int64, kind string, deep bool) (int64, error) {
+	id, err := r.st.InsertJob(ctx, kind, siteID, deep)
 	if err != nil {
 		return 0, err
 	}
@@ -57,11 +58,12 @@ func (r *Runner) Start(ctx context.Context) {
 }
 
 func (r *Runner) exec(ctx context.Context, jobID int64) {
-	var kind string
-	var siteID int64
-	if err := r.st.JobLookup(ctx, jobID, &kind, &siteID); err != nil {
+	j, _, err := r.st.JobByID(ctx, jobID)
+	if err != nil {
 		return
 	}
+	siteID := j.SiteID
+	deep := j.Deep
 	site, err := r.st.SiteByID(ctx, siteID)
 	if err != nil {
 		r.st.JobState(ctx, jobID, "failed", "site gone: "+err.Error())
@@ -71,7 +73,7 @@ func (r *Runner) exec(ctx context.Context, jobID int64) {
 	progress := func(msg string) {
 		r.st.JobDetail(ctx, jobID, msg)
 	}
-	result, runID, err := RunSiteScan(ctx, r.st, r.cfg, site, progress)
+	result, runID, err := RunSiteScan(ctx, r.st, r.cfg, site, progress, deep)
 	if err != nil {
 		r.st.JobState(ctx, jobID, "failed", err.Error())
 		return
@@ -84,7 +86,7 @@ func (r *Runner) exec(ctx context.Context, jobID int64) {
 // RunSiteScan is THE scan path — chrome, metrics, HTTP checks, store.
 // Shared by CLI scan, manual API scan-now, and scheduled jobs.
 func RunSiteScan(ctx context.Context, st *store.Store, cfg config.Config,
-	site *store.Site, progress func(string)) (*measure.Result, int64, error) {
+	site *store.Site, progress func(string), deepMode bool) (*measure.Result, int64, error) {
 	bin, ver, err := chrome.Find(cfg.BrowserPath)
 	if err != nil {
 		return nil, 0, err
@@ -119,6 +121,18 @@ func RunSiteScan(ctx context.Context, st *store.Store, cfg config.Config,
 		res.HTTP = hc
 		progress("h3 probe")
 		res.HTTP3 = http3.Probe(scanCtx, res.URL, hc.AltSvc)
+	}
+	if deepMode {
+		progress("web-vitals attribution")
+		if a, aerr := deep.CollectAttribution(browser, res.URL); aerr == nil {
+			res.Attribution = a
+		}
+		if bin, berr := deep.FindBin(); berr == nil {
+			progress("lighthouse")
+			if lh, lerr := deep.Lighthouse(scanCtx, bin, res.URL); lerr == nil {
+				res.Lighthouse = lh
+			}
+		}
 	}
 	progress("storing")
 	runID, err := Persist(ctx, st, site, res, started)

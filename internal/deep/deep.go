@@ -20,6 +20,7 @@ var wvJS string
 type Attribution struct {
 	Err         string   `json:"err,omitempty"`
 	LCPElement  string   `json:"lcp_element,omitempty"`
+	LCPURL      string   `json:"lcp_url,omitempty"`
 	LCPSubparts []string `json:"lcp_subparts,omitempty"`
 	CLSItems    []string `json:"cls_items,omitempty"`
 	INPms       *float64 `json:"inp_ms,omitempty"`
@@ -31,19 +32,24 @@ const wvCollect = `(() => new Promise(done => {
   try {
     webVitals.onLCP(m => {
       const a = m.attribution || {};
-      out.lcp_element = a.element || '';
+      const le = a.lcpEntry || {};
+      const el = le.element;
+      out.lcp_element = el ? el.tagName + (el.id ? '#' + el.id : '') : '';
+      if (a.url) out.lcp_url = a.url;
       out.lcp_subparts = [
         'ttfb=' + Math.round(a.timeToFirstByte || 0),
         'loadDelay=' + Math.round(a.resourceLoadDelay || 0),
-        'loadTime=' + Math.round(a.resourceLoadTime || 0),
+        'loadTime=' + Math.round(a.resourceLoadDuration || 0),
         'renderDelay=' + Math.round(a.elementRenderDelay || 0)
       ];
     }, {reportAllChanges: true});
     webVitals.onCLS(m => {
       const a = m.attribution || {};
+      const src = a.largestShiftSource;
+      const node = src && src.node;
       out.cls_items = [
         'value=' + (a.largestShiftValue ?? m.value),
-        'source=' + (a.largestShiftSource ? String(a.largestShiftSource).slice(0, 80) : '')
+        'source=' + (node ? node.tagName + (node.id ? '#' + node.id : '') : '')
       ];
     }, {reportAllChanges: true});
     webVitals.onINP(m => { out.inp_ms = m.value; }, {reportAllChanges: true});

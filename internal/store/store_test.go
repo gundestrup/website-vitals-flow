@@ -53,7 +53,7 @@ func TestJobsLifecycle(t *testing.T) {
 	s := open(t)
 	ctx := context.Background()
 	site, _ := s.GetOrCreateSite(ctx, "k", "http://k", 10, 7)
-	id, _ := s.InsertJob(ctx, "scan", site.ID)
+	id, _ := s.InsertJob(ctx, "scan", site.ID, false)
 	if j, _, _ := s.JobByID(ctx, id); j.State != "queued" {
 		t.Fatal("job not queued")
 	}
