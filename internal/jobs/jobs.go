@@ -13,6 +13,7 @@ import (
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/chrome"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/deep"
+	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/findings"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/http3"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/httpcheck"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/measure"
@@ -135,6 +136,8 @@ func RunSiteScan(ctx context.Context, st *store.Store, cfg config.Config,
 			}
 		}
 	}
+	progress("findings")
+	res.Findings = findings.Analyze(res)
 	progress("storing")
 	runID, err := Persist(ctx, st, site, res, started)
 	return res, runID, err

@@ -19,6 +19,24 @@ import (
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/psi"
 )
 
+// Severity ranks findings: info < warn < poor.
+type Severity string
+
+const (
+	SevInfo Severity = "info"
+	SevWarn Severity = "warn"
+	SevPoor Severity = "poor"
+)
+
+// Finding is one best-practice issue + evidence + recommendation.
+type Finding struct {
+	ID       string   `json:"id"`
+	Severity Severity `json:"severity"`
+	Category string   `json:"category"`
+	Title    string   `json:"title"`
+	Detail   string   `json:"detail"`
+}
+
 // Response is one observed network response.
 type Response struct {
 	URL             string            `json:"url"`
@@ -75,6 +93,7 @@ type Result struct {
 	Attribution    *deep.Attribution `json:"attribution,omitempty"`
 	Lighthouse     *deep.LHReport    `json:"lighthouse,omitempty"`
 	PSI            *psi.Result       `json:"psi,omitempty"`
+	Findings       []Finding         `json:"findings,omitempty"`
 	Samples        []Sample          `json:"samples"`
 }
 

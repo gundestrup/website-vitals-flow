@@ -12,6 +12,7 @@ import (
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/chrome"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/deep"
+	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/findings"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/jobs"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/psi"
 
@@ -95,6 +96,7 @@ func scanCmd() *cobra.Command {
 					fmt.Fprintln(os.Stderr, "warn: lighthouse not on PATH — skipping audits")
 				}
 			}
+			res.Findings = findings.Analyze(res)
 			if psiMode {
 				if r, perr := psi.Fetch(ctx, res.URL, cfg.PSIKey); perr == nil {
 					res.PSI = r
@@ -215,4 +217,7 @@ func printSummary(res *measure.Result) {
 	last := res.Samples[n-1]
 	fmt.Printf("  requests %d | DOM nodes %d | JS heap %.1f MB\n",
 		len(last.Responses), last.DOMNodes, float64(last.JSHeap)/1048576)
+	for _, f := range res.Findings {
+		fmt.Printf("  [%s] %s\n", f.Severity, f.Title)
+	}
 }
