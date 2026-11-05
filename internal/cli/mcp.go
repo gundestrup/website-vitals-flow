@@ -1,3 +1,4 @@
+// Package cli implements the wvf command surface (cobra).
 package cli
 
 import (

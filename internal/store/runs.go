@@ -1,3 +1,4 @@
+// Package store persists sites, runs, and jobs in SQLite.
 package store
 
 import (

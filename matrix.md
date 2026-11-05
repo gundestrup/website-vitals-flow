@@ -1,3 +1,9 @@
+# Capability matrix
+
+Survey of the tools studied against the features wvf
+implements — used to decide scope: what to reuse, what to build,
+what to skip. Sources linked in `inspiration.md`.
+
 ## 13. Capability matrix — every tool & library found (2026-11)
 
 Legend: **●** native/full · **◐** partial or possible-with-work ·
