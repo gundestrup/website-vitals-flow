@@ -127,6 +127,7 @@ document.addEventListener('alpine:init', () => {
       return this.jobs.find(j=>(j.state==='queued'||j.state==='running')&&j.site_id===site.id);
     },
     jobText(){ const j=this.activeJob(); return j?('job '+j.id+': '+j.state+' '+(j.detail||'')):'' },
+    lastRunId(){ const r=this.runs||[]; return r.length?r[0].id:null },
     shotSrc(){
       const d=this.det||{};
       const sm=(d.samples&&d.samples.length)?d.samples[d.samples.length-1]:null;

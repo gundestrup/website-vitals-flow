@@ -91,7 +91,8 @@
     </div></template>
     <div class="shot-card" x-show="shotSrc()">
       <div class=metric-lbl style="padding:.4em .6em .2em">last scan screenshot</div>
-      <img x-bind:src="shotSrc()" alt="page after load">
+      <a x-bind:href="lastRunId()?('/site/'+sel+'/report/'+lastRunId()):'#'" title="open latest run report">
+      <img x-bind:src="shotSrc()" alt="page after load"></a>
     </div>
   </div>
   <h2 class="title is-5 section-heading">Trends</h2>
