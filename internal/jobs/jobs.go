@@ -129,9 +129,10 @@ func RunSiteScan(ctx context.Context, st *store.Store, cfg config.Config,
 	}
 	if deepMode && findings.Want(only, "deep") {
 		progress("web-vitals attribution")
-		if a, frames, aerr := deep.CollectAttribution(browser, res.URL); aerr == nil {
+		if a, frames, ff, aerr := deep.CollectAttribution(browser, res.URL); aerr == nil {
 			res.Attribution = a
 			res.Filmstrip = frames
+			res.FilmstripFormat = ff
 		}
 		if bin, berr := deep.FindBin(); berr == nil {
 			progress("lighthouse")

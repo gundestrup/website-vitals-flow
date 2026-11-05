@@ -85,9 +85,10 @@ func scanCmd() *cobra.Command {
 				}
 			}
 			if deepMode && findings.Want(only, "deep") {
-				if a, frames, aerr := deep.CollectAttribution(browser, res.URL); aerr == nil {
+				if a, frames, ff, aerr := deep.CollectAttribution(browser, res.URL); aerr == nil {
 					res.Attribution = a
 					res.Filmstrip = frames
+					res.FilmstripFormat = ff
 				} else {
 					fmt.Fprintf(os.Stderr, "warn: attribution: %v\n", aerr)
 				}

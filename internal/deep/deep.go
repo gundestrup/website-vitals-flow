@@ -8,7 +8,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/chromedp/cdproto/cdp"
@@ -80,27 +82,40 @@ const wvCollect = `(() => new Promise(done => {
 // measure.Run), navigates, snaps filmstrip frames during settle,
 // clicks several spots for worst-case lab-INP, injects the vendored
 // attribution build, and returns the debugger payload + frames.
-func CollectAttribution(ctx context.Context, url string) (*Attribution, []string, error) {
+func CollectAttribution(ctx context.Context, url string) (*Attribution, []string, string, error) {
 	tab, tcancel := chromedp.NewContext(ctx)
 	defer tcancel()
 	if err := chromedp.Do(tab, chromedp.Navigate(url)); err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 	var frames []string
+	avifBin, _ := FindAvifenc()
+	format := "webp"
+	quality := int64(60)
+	if avifBin != "" {
+		format = "jpeg" // avifenc input must be jpg/png
+		quality = int64(80)
+	}
 	for i := 0; i < 3; i++ { // filmstrip-lite: 3 frames across settle
 		chromedp.Do(tab, chromedp.Sleep(500*time.Millisecond))
+		f, q := format, quality
 		buf, err := chromedp.Run(tab, func(ctx context.Context, t *chromedp.Target) ([]byte, error) {
-			q := int64(60)
 			r, err := cdp.Call(ctx, t, page.CaptureScreenshot,
-				page.CaptureScreenshotParams{Format: "webp", Quality: &q})
+				page.CaptureScreenshotParams{Format: page.CaptureScreenshotFormat(f), Quality: &q})
 			if err != nil {
 				return nil, err
 			}
 			return r.Data, nil
 		})
-		if err == nil && len(buf) > 0 {
-			frames = append(frames, base64.StdEncoding.EncodeToString(buf))
+		if err != nil || len(buf) == 0 {
+			continue
 		}
+		if avifBin != "" {
+			if enc, err := AvifEncode(ctx, avifBin, buf); err == nil {
+				buf = enc
+			}
+		}
+		frames = append(frames, base64.StdEncoding.EncodeToString(buf))
 	}
 	// lab-INP: several trusted clicks so Event Timing reports the
 	// WORST interaction — web-vitals attributes it.
@@ -108,14 +123,18 @@ func CollectAttribution(ctx context.Context, url string) (*Attribution, []string
 	click(tab, 0.50, 0.55)
 	click(tab, 0.75, 0.70)
 	if _, err := chromedp.Run(tab, chromedp.Evaluate[any](wvJS)); err != nil {
-		return nil, nil, fmt.Errorf("inject web-vitals: %w", err)
+		return nil, nil, "", fmt.Errorf("inject web-vitals: %w", err)
 	}
 	res, err := chromedp.Run(tab,
 		chromedp.Evaluate[Attribution](wvCollect, chromedp.EvalAwaitPromise))
-	if err != nil {
-		return nil, frames, err
+	outFormat := "webp"
+	if avifBin != "" && len(frames) > 0 {
+		outFormat = "avif"
 	}
-	return &res, frames, nil
+	if err != nil {
+		return nil, frames, outFormat, err
+	}
+	return &res, frames, outFormat, nil
 }
 
 // click dispatches a trusted left-click at viewport-relative x,y.
@@ -207,6 +226,33 @@ func Lighthouse(ctx context.Context, bin, url string) (*LHReport, error) {
 		r.Findings = append(r.Findings, f)
 	}
 	return r, nil
+}
+
+// FindAvifenc locates an avifenc binary (optional filmstrip upgrade).
+func FindAvifenc() (string, error) {
+	return exec.LookPath("avifenc")
+}
+
+// AvifEncode transcodes jpeg/png bytes to AVIF via avifenc.
+func AvifEncode(ctx context.Context, bin string, in []byte) ([]byte, error) {
+	dir, err := os.MkdirTemp("", "wvf-avif")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(dir)
+	src := filepath.Join(dir, "in.jpg")
+	dst := filepath.Join(dir, "out.avif")
+	if err := os.WriteFile(src, in, 0o644); err != nil {
+		return nil, err
+	}
+	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(cctx, bin,
+		"--speed", "8", "--min", "35", "--max", "45", src, dst).CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("avifenc: %w (%s)", err, out)
+	}
+	return os.ReadFile(dst)
 }
 
 // FindBin locates a lighthouse executable.

@@ -37,6 +37,11 @@ func doctorCmd() *cobra.Command {
 				fmt.Println("  lighthouse  ✗ not found — deep audits degrade to CDP-only")
 			}
 			fmt.Printf("  web-vitals  ✓ vendored (attribution)\n")
+			if p, err := deep.FindAvifenc(); err == nil {
+				fmt.Printf("  avifenc     ✓ %s (filmstrip avif)\n", p)
+			} else {
+				fmt.Println("  avifenc     ✗ not found — filmstrip stays webp")
+			}
 			fmt.Printf("  state_db    %s\n", cfg.StateDB)
 			return nil
 		},

@@ -99,16 +99,17 @@ type Sample struct {
 
 // Result is a complete measurement: samples + the Chrome version used.
 type Result struct {
-	URL            string            `json:"url"`
-	BrowserVersion string            `json:"browser_version"`
-	HTTP           *httpcheck.Result `json:"http_checks,omitempty"`
-	HTTP3          *http3.Result     `json:"http3,omitempty"`
-	Attribution    *deep.Attribution `json:"attribution,omitempty"`
-	Lighthouse     *deep.LHReport    `json:"lighthouse,omitempty"`
-	PSI            *psi.Result       `json:"psi,omitempty"`
-	Findings       []Finding         `json:"findings,omitempty"`
-	Filmstrip      []string          `json:"filmstrip,omitempty"`
-	Samples        []Sample          `json:"samples"`
+	URL             string            `json:"url"`
+	BrowserVersion  string            `json:"browser_version"`
+	HTTP            *httpcheck.Result `json:"http_checks,omitempty"`
+	HTTP3           *http3.Result     `json:"http3,omitempty"`
+	Attribution     *deep.Attribution `json:"attribution,omitempty"`
+	Lighthouse      *deep.LHReport    `json:"lighthouse,omitempty"`
+	PSI             *psi.Result       `json:"psi,omitempty"`
+	Findings        []Finding         `json:"findings,omitempty"`
+	Filmstrip       []string          `json:"filmstrip,omitempty"`
+	FilmstripFormat string            `json:"filmstrip_format,omitempty"`
+	Samples         []Sample          `json:"samples"`
 }
 
 // pageMetrics mirrors the JSON returned by collectScript.
