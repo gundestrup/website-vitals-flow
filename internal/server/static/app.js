@@ -11,13 +11,7 @@ document.addEventListener('alpine:init', () => {
     bandName(id,v){
       return this.band(id,v).replace('band-','');
     },
-    mcell(id,v){
-      // badge svg + value — shields-style, vendored offline
-      const b=this.bandName(id,v);
-      const d=id==='cls'?(v==null?'-':v.toFixed(3)):(v==null?'-':Math.round(v)+'ms');
-      if(b==='na'||v==null) return `<span class=mono>${d}</span>`;
-      return `<img class="badge-img" src="/badges/${id}-${b}.svg" alt="${b}"><span class="badge-val mono">${d}</span>`;
-    },
+    fmtv(id,v){ return id==='cls'?(v==null?'-':v.toFixed(3)):(v==null?'-':Math.round(v)+'ms') },
     async j(u,o){ const r=await fetch(u,o); return r.json() },
     async load(){
       this.sites = await this.j('/api/sites') || [];
@@ -26,7 +20,8 @@ document.addEventListener('alpine:init', () => {
       this.jobs = await this.j('/api/jobs') || [];
       for (const s of this.sites){
         const rr = await this.j('/api/sites/'+s.key+'/runs');
-        if (rr && rr.length) this.last[s.key]=rr[0];
+        // last successful run — failed ticks carry null metrics
+        if (rr && rr.length) this.last[s.key]=rr.find(r=>r.status==='ok')||rr[0];
       }
     },
     async open(key){
