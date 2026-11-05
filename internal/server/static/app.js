@@ -31,7 +31,6 @@ document.addEventListener('alpine:init', () => {
       const out=[];
       const ms=(id,v,label)=>{out.push({id,band:this.bandName(id,v),
         text:this.fmtv(id,v),label,age:stale})};
-      out.push({grp:'web vitals'});
       const MT={ttfb:'time to first byte — server response speed',
         fcp:'first contentful paint — first visible content',
         lcp:'largest contentful paint — main content ready',
@@ -40,7 +39,6 @@ document.addEventListener('alpine:init', () => {
       ms('ttfb',r.ttfb_ms,'TTFB'); ms('fcp',r.fcp_ms,'FCP');
       ms('lcp',r.lcp_ms,'LCP');   ms('cls',r.cls,'CLS');
       ms('tbt',r.tbt_ms,'TBT');
-      out.push({grp:'delivery'});
       out.push({id:'',band:'na',text:'',label:'page size',title:'requests / weight / DOM per load',age:stale,
         lines:[{label:(r.request_count??'-')+' requests',title:'network requests per load'},
           {img:'/icons/weight-svgrepo-com.svg',label:r.page_bytes?Math.round(r.page_bytes/1024)+'KB':'-',
@@ -89,9 +87,7 @@ document.addEventListener('alpine:init', () => {
         'x-cache':'proxy cache status','x-cache-hits':'cache hit counter'};
       out.push({id:'cache',band:tot?(pct>=80?'good':pct>=50?'ok':'poor'):'na',
         text:tot?pct+'%':'-',label:'cacheable',title:'share of responses marked cacheable',age:stale,
-        lineCols:2,
-        const SHORT={'cache-control':'cache-ctl','last-modified':'last-mod','cf-cache-status':'cf-cache','x-cache-hits':'x-hits'};
-      lines:Object.keys(SIGT).map(k=>({ok:!!sig[k],label:SHORT[k]||k,title:SIGT[k]}))});
+        lines:Object.keys(SIGT).map(k=>({ok:!!sig[k],label:k,title:SIGT[k]}))});
       return out;
     },
     async j(u,o){ const r=await fetch(u,o); return r.json() },
