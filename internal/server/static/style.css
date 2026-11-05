@@ -105,3 +105,12 @@ body { min-height: 100vh; background: var(--wvf-paper); color: var(--wvf-ink); }
 .wvf-icon.ok { color:#2e7d32 } .wvf-icon.no { color:#c62828 }
 
 .comp-icon { width:16px; height:16px; vertical-align:-2px; margin-right:.3em; }
+
+.group-cap { grid-column:1/-1; font-family:var(--wvf-mono); font-size:.68rem;
+  text-transform:uppercase; letter-spacing:.14em; color:var(--wvf-muted);
+  margin:.4em 0 -.3em; }
+
+.proto-lines.two-col { column-count:2; column-gap:1em; }
+.proto-lines.two-col > div { break-inside:avoid; }
+
+.proto-lines.two-col > div { white-space:nowrap; font-size:.62rem; }
