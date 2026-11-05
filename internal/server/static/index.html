@@ -14,9 +14,15 @@
       <span class="tag is-light" x-show="s.deep">deep</span>
       <span class="tag is-light" x-show="s.only" x-text="s.only"></span></td>
   <td class=mono x-text="s.schedule||'manual'"></td>
-  <td x-html="last[s.key]?mcell('ttfb',last[s.key].ttfb_ms):''"></td>
-  <td x-html="last[s.key]?mcell('lcp',last[s.key].lcp_ms):''"></td>
-  <td x-html="last[s.key]?mcell('cls',last[s.key].cls):''"></td>
+  <td><template x-if="last[s.key]"><span>
+      <img class=badge-img x-bind:src="'/badges/ttfb-'+bandName('ttfb',last[s.key].ttfb_ms)+'.svg'">
+      <span class="badge-val mono" x-text="fmtv('ttfb',last[s.key].ttfb_ms)"></span></span></template></td>
+  <td><template x-if="last[s.key]"><span>
+      <img class=badge-img x-bind:src="'/badges/lcp-'+bandName('lcp',last[s.key].lcp_ms)+'.svg'">
+      <span class="badge-val mono" x-text="fmtv('lcp',last[s.key].lcp_ms)"></span></span></template></td>
+  <td><template x-if="last[s.key]"><span>
+      <img class=badge-img x-bind:src="'/badges/cls-'+bandName('cls',last[s.key].cls)+'.svg'">
+      <span class="badge-val mono" x-text="fmtv('cls',last[s.key].cls)"></span></span></template></td>
   <td><button class="button is-small is-primary" @click="scan(s.key)" x-bind:disabled="busy">scan now</button></td>
 </tr></template></tbody></table></div>
 <div x-show="sel" style="margin-top:2em">
