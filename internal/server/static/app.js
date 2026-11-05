@@ -100,12 +100,20 @@ document.addEventListener('alpine:init', () => {
         {id:'reqs',label:'requests',v:r=>r.request_count,b:[75,150]},
         {id:'weight',label:'weight KB',v:r=>KB(r.page_bytes),b:[1536,3072]},
       ];
+      const bandColor={'good':'#2e7d32','ok':'#f9a825','poor':'#c62828','na':'#97a5a0'};
       for(const sp of specs){
         const el=document.getElementById('tr-'+sp.id); if(!el) continue;
         if(this.charts[sp.id]) this.charts[sp.id].destroy();
-        const ds=[{label:sp.label,data:rs.map(sp.v),
+        const vals=rs.map(sp.v);
+        // point colors by band — green/amber/red like LH score rings
+        const ptColor=vals.map(v=>{
+          if(v==null||!sp.b) return bandColor.na;
+          return bandColor[v>sp.b[1]?'poor':v>sp.b[0]?'ok':'good'];
+        });
+        const ds=[{label:sp.label,data:vals,
           borderColor:'hsl(210 39% 44%)',backgroundColor:'hsl(210 39% 44% / .12)',
-          tension:.3,pointRadius:2,fill:true}];
+          pointBackgroundColor:ptColor,pointBorderColor:ptColor,pointRadius:3,
+          tension:.3,fill:true}];
         if(sp.b){ds.push(
           {data:labels.map(()=>sp.b[0]),borderColor:'#2e7d32',borderDash:[5,4],pointRadius:0,borderWidth:1.4},
           {data:labels.map(()=>sp.b[1]),borderColor:'#c62828',borderDash:[5,4],pointRadius:0,borderWidth:1.4});}
