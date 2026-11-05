@@ -35,8 +35,10 @@ document.addEventListener('alpine:init', () => {
       ms('lcp',r.lcp_ms,'LCP');   ms('cls',r.cls,'CLS');
       ms('tbt',r.tbt_ms,'TBT');
       out.push({id:'',band:'na',text:r.request_count??'-',label:'requests',age:stale});
-      out.push({id:'',band:'na',text:r.page_bytes?Math.round(r.page_bytes/1024)+'KB':'-',label:'weight',age:stale});
-      out.push({id:'',band:'na',text:r.dom_nodes??'-',label:'DOM nodes',age:stale});
+      out.push({id:'',band:'na',icon:'/icons/weight-svgrepo-com.svg',
+        text:r.page_bytes?Math.round(r.page_bytes/1024)+'KB':'-',label:'weight',age:stale});
+      out.push({id:'',band:'na',icon:'/icons/dom-svgrepo-com.svg',
+        text:r.dom_nodes??'-',label:'DOM nodes',age:stale});
       // protocol widget: 3-line status (h3 advertised / h2 negotiated / h1 baseline)
       const d=this.det||{};
       const proto=r.http_protocol||'';
