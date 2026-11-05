@@ -4,12 +4,14 @@ package server
 import (
 	"embed"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"os"
 
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/jobs"
+	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/score"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/sitekey"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/store"
 	"time"
@@ -34,6 +36,7 @@ func New(st *store.Store, cfg config.Config, r *jobs.Runner) http.Handler {
 	mux.HandleFunc("GET /api/runs/{id}", s.run)
 	mux.HandleFunc("GET /api/jobs", s.jobs)
 	mux.HandleFunc("GET /api/jobs/{id}", s.job)
+	mux.HandleFunc("GET /badge.svg", s.badge)
 	mux.HandleFunc("POST /api/scan", s.scan)
 	mux.HandleFunc("POST /api/scan-now", s.scanNow)
 	mux.Handle("GET /", s.static())
@@ -115,6 +118,105 @@ func fmt_Sscanf(s string, id *int64) (int, error) {
 }
 
 var errBadID = errString("bad id")
+
+// badge serves shields.io-style SVG badges: ?metric=lcp&value=532&site=k
+// or ?run=<id>&metric=lcp — reads the metric from the stored run.
+func (s *Server) badge(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	metric := q.Get("metric")
+	var value float64
+	var ok bool
+	if id := q.Get("run"); id != "" {
+		var rid int64
+		if _, err := fmt_Sscanf(id, &rid); err == nil {
+			if run, err := s.st.RunByID(r.Context(), rid); err == nil {
+				value, ok = runMetric(run, metric)
+			}
+		}
+	}
+	if !ok {
+		// raw value mode: ?value=532 or ?cls=0.2
+		if v := q.Get("value"); v != "" {
+			var f float64
+			if _, err := fmt_Sscanfloat(v, &f); err == nil {
+				value, ok = f, true
+			}
+		}
+	}
+	label := metric
+	vtext := "n/a"
+	band := score.Band("")
+	if ok {
+		vtext = fmtVal(metric, value)
+		band = score.Metric(metric, value)
+	}
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	w.Write([]byte(score.BadgeSVG(label, vtext, band)))
+}
+
+func runMetric(r *store.Run, metric string) (float64, bool) {
+	switch metric {
+	case "ttfb":
+		return r.TTFBms, true
+	case "fcp":
+		if r.FCPms != nil {
+			return *r.FCPms, true
+		}
+	case "lcp":
+		if r.LCPms != nil {
+			return *r.LCPms, true
+		}
+	case "cls":
+		return r.CLS, true
+	case "tbt":
+		return r.TBTms, true
+	}
+	return 0, false
+}
+
+func fmtVal(metric string, v float64) string {
+	if metric == "cls" {
+		return fmt.Sprintf("%.3f", v)
+	}
+	return fmt.Sprintf("%.0fms", v)
+}
+
+func fmt_Sscanfloat(s string, f *float64) (int, error) {
+	var neg bool
+	i := 0
+	if len(s) > 0 && s[0] == '-' {
+		neg = true
+		i = 1
+	}
+	var intp, frac, fracdiv float64
+	fracdiv = 1
+	seen := false
+	for ; i < len(s); i++ {
+		c := s[i]
+		if c == '.' {
+			continue
+		}
+		if c < '0' || c > '9' {
+			return 0, errBadID
+		}
+		seen = true
+		if fracdiv == 1 {
+			intp = intp*10 + float64(c-'0')
+		} else {
+			fracdiv *= 10
+			frac += float64(c-'0') / fracdiv
+		}
+	}
+	if !seen {
+		return 0, errBadID
+	}
+	*f = intp + frac
+	if neg {
+		*f = -*f
+	}
+	return 1, nil
+}
 
 // scan is the IDE/agent entry point: POST {"url": ..., "wait": seconds}.
 // Normalizes the URL to a site key (created on first sight), enqueues,
