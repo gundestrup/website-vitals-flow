@@ -66,13 +66,19 @@
     </span>
   </span>
   <p class=eyebrow x-text="sel"></p>
-  <template x-if="last[sel]"><div class="metric-grid">
-    <template x-for="m in metricCards()"><div class="metric-cell">
-      <img class=badge-img x-show="m.id" x-bind:src="'/badges/'+m.id+'-'+m.band+'.svg'">
-      <div class="metric-val mono" x-text="m.text"></div>
-      <div class="metric-lbl"><span x-text="m.label"></span><span class="metric-age" x-show="m.age" x-text="m.age+' ago'"></span></div>
+  <div class=detail-top>
+    <template x-if="last[sel]"><div class="metric-grid">
+      <template x-for="m in metricCards()"><div class="metric-cell">
+        <img class=badge-img x-show="m.id" x-bind:src="'/badges/'+m.id+'-'+m.band+'.svg'">
+        <div class="metric-val mono" x-text="m.text"></div>
+        <div class="metric-lbl"><span x-text="m.label"></span><span class="metric-age" x-show="m.age" x-text="m.age+' ago'"></span></div>
+      </div></template>
     </div></template>
-  </div></template>
+    <div class="shot-card" x-show="shotSrc()">
+      <div class=metric-lbl style="padding:.4em .6em .2em">last scan screenshot</div>
+      <img x-bind:src="shotSrc()" alt="page after load">
+    </div>
+  </div>
   <h2 class="title is-5 section-heading">Trends</h2>
   <div class="trend-grid">
     <div class=trend-cell><div class=metric-lbl>TTFB</div><div class=trend-chart><canvas id="tr-ttfb"></canvas></div></div>

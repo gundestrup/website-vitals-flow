@@ -125,6 +125,11 @@ document.addEventListener('alpine:init', () => {
       return this.jobs.find(j=>(j.state==='queued'||j.state==='running')&&j.site_id===site.id);
     },
     jobText(){ const j=this.activeJob(); return j?('job '+j.id+': '+j.state+' '+(j.detail||'')):'' },
+    shotSrc(){
+      const d=this.det||{};
+      const sm=(d.samples&&d.samples.length)?d.samples[d.samples.length-1]:null;
+      return (sm&&sm.screenshot)?('data:image/jpeg;base64,'+sm.screenshot):null;
+    },
     siteByKey(k){ return this.sites.find(x=>x.key===k)||{key:k} },
     async scanSite(s){
       this.busy=true;
