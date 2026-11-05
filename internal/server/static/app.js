@@ -45,7 +45,7 @@ document.addEventListener('alpine:init', () => {
       // detail_json fields (encoding/tls/dom/cache live per-response)
       const d=this.det||{};
       const smp=(d.samples&&d.samples.length)?d.samples[d.samples.length-1]:{};
-      const resp=(smp.responses||d.responses||[]);
+      const resp=smp.responses||[];
       const doc=resp.find(x=>x.url===d.url)||resp[0]||{};
       const enc=doc.encoding||doc.content_encoding||'';
       out.push({id:'comp',band:(enc==='br'||enc==='zstd')?'good':enc==='gzip'?'ok':enc?'poor':'na',
@@ -87,8 +87,12 @@ document.addEventListener('alpine:init', () => {
     async open(key){
       this.sel=key; history.pushState({},'', '/site/'+encodeURIComponent(key));
       this.runs=(await this.j('/api/sites/'+key+'/runs'))||[];
-      if(this.runs.length){
-        const det=await this.j('/api/runs/'+this.runs[0].id);
+      // only re-render when the newest run actually changed — a poll
+      // with no new data must not tear down and rebuild the charts
+      const newest=this.runs[0];
+      if(newest && newest.id===this._drawnFor && this.det){ return; }
+      if(newest){
+        const det=await this.j('/api/runs/'+newest.id);
         try{ this.det=JSON.parse(det.detail_json);
              const seen=new Set();
              this.findings=(this.det.findings||[]).filter(f=>{
@@ -96,6 +100,7 @@ document.addEventListener('alpine:init', () => {
                return !seen.has(k)&&(seen.add(k),true)});
            }catch(e){ this.det=null; this.findings=[] }
       }
+      this._drawnFor=newest?newest.id:null;
       setTimeout(()=>this.draw(),0);
     },
     // add/edit/delete monitored sites via the new API
