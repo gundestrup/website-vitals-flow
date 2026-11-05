@@ -83,7 +83,7 @@
   <p class=eyebrow x-text="sel"></p>
   <div class=detail-top>
     <template x-if="last[sel]"><div class="metric-grid">
-      <template x-for="m in metricCards()"><div class="metric-cell">
+      <template x-for="m in metricCards()"><div class="metric-cell" x-bind:title="m.title">
         <img class=badge-img x-show="m.id" x-bind:src="'/badges/'+m.id+'-'+m.band+'.svg'">
         <div class="metric-val mono"><img class=comp-icon x-show="m.icon" x-bind:src="m.icon" alt=""><span x-text="m.text"></span></div>
         <template x-if="m.lines"><div class=proto-lines>
@@ -105,12 +105,12 @@
   <!-- signal checklists: compression + cache headers -->
   <div class=signal-row x-show="encList().length||signalList().length">
     <span class=metric-lbl>compression</span>
-    <template x-for="it in encList()"><span class="signal" :class="it.ok?'ok':''">
+    <template x-for="it in encList()"><span class="signal" :class="it.ok?'ok':''" x-bind:title="it.t">
       <span class="wvf-icon icon-check" x-show="it.ok"></span>
       <span class="wvf-icon icon-cross" x-show="!it.ok"></span>
       <span x-text="it.l"></span></span></template>
     <span class=metric-lbl style="margin-left:1em">cache signals</span>
-    <template x-for="it in signalList()"><span class="signal" :class="it.ok?'ok':''">
+    <template x-for="it in signalList()"><span class="signal" :class="it.ok?'ok':''" x-bind:title="it.t">
       <span class="wvf-icon icon-check" x-show="it.ok"></span>
       <span class="wvf-icon icon-cross" x-show="!it.ok"></span>
       <span x-text="it.l"></span></span></template>
