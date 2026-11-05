@@ -109,6 +109,7 @@ document.addEventListener('alpine:init', () => {
       await this.load();
     },
     // scan with the toolbar type picker — site row or detail header
+    siteByKey(k){ return this.sites.find(x=>x.key===k)||{key:k} },
     async scanSite(s){
       this.busy=true;
       const only=this.scanType==='custom'?this.onlySel.join(','):(this.scanType==='deep'?'':this.scanType);

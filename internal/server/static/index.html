@@ -57,7 +57,9 @@
         <input type=checkbox :value="o" x-model="onlySel"> <span x-text="o"></span></label></template>
     </span></template>
     <button class="button is-small is-primary" @click="scanSite({key:sel})" x-bind:disabled="busy">scan</button>
+    <button class="button is-small" @click="editSite(siteByKey(sel))">edit</button>
     <button class="button is-small" @click="prune(sel)">prune</button>
+    <button class="button is-small is-light" @click="delSite(siteByKey(sel))">✕</button>
   </span>
   <p class=eyebrow x-text="sel"></p>
   <template x-if="last[sel]"><div class="metric-grid">
@@ -85,12 +87,13 @@
   </div></template>
   <h2 class="title is-5 section-heading">Runs</h2>
   <div class=table-container><table class="table is-fullwidth"><thead>
-  <tr><th>id</th><th>when</th><th>engine</th><th>ttfb</th><th>lcp</th><th>cls</th><th>tbt</th><th>proto</th></tr></thead>
+  <tr><th>id</th><th>when</th><th>engine</th><th>ttfb</th><th>lcp</th><th>cls</th><th>tbt</th><th>proto</th><th>report</th></tr></thead>
   <tbody><template x-for="r in runs"><tr>
     <td class=mono x-text="r.id"></td><td class=mono x-text="r.started_at.slice(0,16).replace('T',' ')"></td>
     <td class=mono x-text="r.engine"></td><td class=mono x-text="fmt(r.ttfb_ms)"></td>
     <td class=mono x-text="fmt(r.lcp_ms)"></td><td class=mono x-text="r.cls.toFixed(3)"></td>
     <td class=mono x-text="fmt(r.tbt_ms)"></td><td><span class="tag is-light mono" x-text="r.http_protocol"></span></td>
+    <td class=mono><a x-bind:href="'/report/'+r.id" target="_blank" title="open run report">↗</a></td>
   </tr></template></tbody></table></div></div>
 </div></div></section>
 <script src=/vendor/chart.umd.js></script><script src=/vendor/cdn.min.js defer></script>
