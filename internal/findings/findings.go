@@ -263,6 +263,17 @@ func Analyze(res *measure.Result) []Finding {
 			Link:  "https://web.dev/articles/reduce-javascript-payloads-with-code-splitting"})
 	}
 
+	// --- site basics: conventional files (webserver-level best practice)
+	for path, st := range res.HTTP.Basics {
+		if st == 0 || st >= 400 {
+			out = append(out, Finding{ID: "basics_" + strings.TrimPrefix(path, "/"),
+				Severity: measure.SevInfo, Category: "server",
+				Title:  "missing " + path,
+				Detail: fmt.Sprintf("returned status %d — expected by crawlers/agents", st),
+				Link:   "https://developers.google.com/search/docs/crawling-indexing/robots/intro"})
+		}
+	}
+
 	return out
 }
 
