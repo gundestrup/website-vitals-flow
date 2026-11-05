@@ -73,7 +73,11 @@ func scanCmd() *cobra.Command {
 				res.BrowserVersion = ver
 			}
 			if findings.Want(only, "http") {
-				if hc, herr := httpcheck.Probe(ctx, res.URL); herr == nil {
+				hc, herr := httpcheck.Probe(ctx, res.URL)
+				if herr != nil {
+					engErr("http_error", "http checks failed", herr)
+				}
+				if herr == nil {
 					var assets []httpcheck.Asset
 					if n := len(res.Samples); n > 0 {
 						for _, r := range res.Samples[n-1].Responses {
