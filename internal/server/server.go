@@ -451,39 +451,91 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown run", 404)
 		return
 	}
+	site, _ := s.st.SiteByID(r.Context(), run.SiteID)
 	var det map[string]any
 	_ = json.Unmarshal([]byte(run.DetailJSON), &det)
-	var b strings.Builder
-	b.WriteString("<!doctype html><meta charset=utf-8><title>wvf run report</title>")
-	b.WriteString("<style>body{font-family:system-ui;max-width:900px;margin:2em auto;padding:0 1em}")
-	b.WriteString("table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:.3em .6em;font-size:.85em}")
-	b.WriteString(".poor{color:#c62828}.warn{color:#b26a00}.info{color:#555}pre{background:#f4f1e8;padding:1em;overflow:auto;font-size:.75em}</style>")
-	fmt.Fprintf(&b, "<h1>Run %d</h1><p>%s · engine %s · %s</p>", id, run.BrowserVersion, run.Engine, run.StartedAt.Format("2006-01-02 15:04"))
-	b.WriteString("<table><tr><th>ttfb</th><th>fcp</th><th>lcp</th><th>cls</th><th>tbt</th><th>reqs</th></tr>")
+
+	ago := func(t time.Time) string {
+		d := time.Since(t)
+		switch {
+		case d < time.Hour:
+			return fmt.Sprintf("%dm ago", int(d.Minutes()))
+		case d < 24*time.Hour:
+			return fmt.Sprintf("%dh ago", int(d.Hours()))
+		default:
+			return fmt.Sprintf("%dd ago", int(d.Hours()/24))
+		}
+	}
 	f := func(p *float64) string {
 		if p == nil {
 			return "-"
 		}
 		return fmt.Sprintf("%.0f", *p)
 	}
-	fmt.Fprintf(&b, "<tr><td>%.0f</td><td>%s</td><td>%s</td><td>%.3f</td><td>%.0f</td><td>%d</td></tr></table>",
-		run.TTFBms, f(run.FCPms), f(run.LCPms), run.CLS, run.TBTms, run.RequestCount)
+	cell := func(metric, val, label string, v float64) string {
+		band := "na"
+		if metric != "" {
+			band = string(score.Metric(metric, v))
+		}
+		return fmt.Sprintf(`<div class=metric-cell><img class=badge-img src="/badges/%s-%s.svg"><div class="metric-val mono">%s</div><div class=metric-lbl>%s</div></div>`,
+			metric, band, val, label)
+	}
+	num := func(p *float64) float64 {
+		if p == nil {
+			return 0
+		}
+		return *p
+	}
+
+	var b strings.Builder
+	b.WriteString(`<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">`)
+	b.WriteString(`<link rel=stylesheet href=/style.css><title>wvf run report</title><section class=section>`)
+	b.WriteString(`<p class=eyebrow>website-vitals-flow · run report</p>`)
+	key := ""
+	if site != nil {
+		key = site.Key
+	}
+	fmt.Fprintf(&b, `<a href="/site/%s" class=mono style="font-size:.8rem">&larr; %s</a>`, key, key)
+	fmt.Fprintf(&b, `<h1 class="title is-4" style="font-family:var(--wvf-serif)">Run %d</h1>`, id)
+	fmt.Fprintf(&b, `<p class=mono style="font-size:.78rem;color:var(--wvf-muted)">%s &middot; engine %s &middot; status %s &middot; %s</p>`,
+		run.StartedAt.Format("2006-01-02 15:04"), run.Engine, run.Status, ago(run.StartedAt))
+
+	b.WriteString(`<div class=metric-grid>`)
+	b.WriteString(cell("ttfb", fmt.Sprintf("%.0fms", run.TTFBms), "TTFB", run.TTFBms))
+	b.WriteString(cell("fcp", f(run.FCPms)+"ms", "FCP", num(run.FCPms)))
+	b.WriteString(cell("lcp", f(run.LCPms)+"ms", "LCP", num(run.LCPms)))
+	b.WriteString(cell("cls", fmt.Sprintf("%.3f", run.CLS), "CLS", run.CLS))
+	b.WriteString(cell("tbt", fmt.Sprintf("%.0f", run.TBTms)+"ms", "TBT", run.TBTms))
+	b.WriteString(fmt.Sprintf(`<div class=metric-cell><div class="metric-val mono">%d</div><div class=metric-lbl>requests</div></div>`, run.RequestCount))
+	b.WriteString(fmt.Sprintf(`<div class=metric-cell><div class="metric-val mono">%dKB</div><div class=metric-lbl>weight</div></div>`, run.PageBytes/1024))
+	b.WriteString(`</div>`)
+
+	if sm, ok := det["samples"].([]any); ok && len(sm) > 0 {
+		if m, ok := sm[len(sm)-1].(map[string]any); ok {
+			if shot, ok := m["screenshot"].(string); ok && shot != "" {
+				b.WriteString(`<div class=shot-card style="max-width:340px"><div class=metric-lbl style="padding:.4em .6em .2em">page after load</div><img src="data:image/jpeg;base64,` + shot + `"></div>`)
+			}
+		}
+	}
+
 	if fs, ok := det["findings"].([]any); ok && len(fs) > 0 {
-		b.WriteString("<h2>Findings</h2>")
+		b.WriteString(`<h2 class=section-title>Findings</h2>`)
 		for _, fi := range fs {
-			m := fi.(map[string]any)
-			fmt.Fprintf(&b, "<p class=%v>[%v] %v", m["severity"], m["severity"], m["title"])
+			m, _ := fi.(map[string]any)
+			b.WriteString(`<div class=finding>`)
+			fmt.Fprintf(&b, `<b class="%v">[%v]</b> %v`, m["severity"], m["severity"], m["title"])
 			if m["link"] != nil {
-				fmt.Fprintf(&b, ` — <a href="%v">guide</a>`, m["link"])
+				fmt.Fprintf(&b, ` <a href="%v" target=_blank>&rarr; guide</a>`, m["link"])
 			}
-			if m["detail"] != nil {
-				fmt.Fprintf(&b, "<br><small>%v</small>", m["detail"])
+			if d, ok := m["detail"].(string); ok && d != "" {
+				fmt.Fprintf(&b, `<div class=mono style="font-size:.72rem;color:var(--wvf-muted);white-space:pre-line;padding-left:1.2em">%v</div>`, d)
 			}
-			b.WriteString("</p>")
+			b.WriteString(`</div>`)
 		}
 	}
 	j, _ := json.MarshalIndent(det, "", "  ")
-	fmt.Fprintf(&b, "<h2>detail_json</h2><pre>%s</pre>", j)
+	fmt.Fprintf(&b, `<h2 class=section-title>detail_json</h2><pre style="background:var(--wvf-bg-soft);padding:1em;overflow:auto;font-size:.75em;border-radius:6px">%s</pre>`, j)
+	b.WriteString(`</section>`)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(b.String()))
 }
