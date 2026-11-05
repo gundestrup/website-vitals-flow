@@ -84,6 +84,8 @@
     <span x-bind:class="'sev-'+f.severity" x-text="'['+f.severity+']'"></span>
     <span x-text="f.title"></span>
     <a x-show="f.link" x-bind:href="f.link" target="_blank" rel="noopener" x-text="'→ guide'"></a>
+    <div class=mono x-show="f.detail" x-text="f.detail"
+      style="font-size:.72rem;color:var(--wvf-muted);white-space:pre-line;padding-left:1.2em"></div>
   </div></template>
   <h2 class="title is-5 section-heading">Runs</h2>
   <div class=table-container><table class="table is-fullwidth"><thead>

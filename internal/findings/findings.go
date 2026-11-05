@@ -361,6 +361,12 @@ func FromLighthouse(lh *deep.LHReport) []measure.Finding {
 		if f.Savings > 0 {
 			d = strings.TrimSpace(d + fmt.Sprintf(" (~%.0fms)", f.Savings))
 		}
+		if f.SavingsB > 0 {
+			d = strings.TrimSpace(d + fmt.Sprintf(" (~%.0fKB)", f.SavingsB/1024))
+		}
+		if len(f.Items) > 0 {
+			d = strings.TrimSpace(d + "\n" + strings.Join(f.Items, "\n"))
+		}
 		out = append(out, measure.Finding{
 			ID: "lh_" + f.ID, Severity: sev, Category: "lighthouse",
 			Title: f.Title, Detail: d, Link: f.Link,
