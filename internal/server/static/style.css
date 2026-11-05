@@ -73,5 +73,5 @@ body { min-height: 100vh; background: var(--wvf-paper); color: var(--wvf-ink); }
 .trend-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
   gap:.7em; margin-bottom:1.2em; }
 .trend-cell { border:1px solid var(--wvf-line); border-radius:6px; padding:.5em .6em .2em;
-  background:var(--wvf-bg-soft,#fff); height:150px; }
-.trend-cell canvas { height:120px; }
+  background:var(--wvf-bg-soft,#fff); height:195px; }
+.trend-cell canvas { height:160px; }
