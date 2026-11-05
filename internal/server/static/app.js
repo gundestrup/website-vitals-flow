@@ -50,10 +50,10 @@ document.addEventListener('alpine:init', () => {
       const enc=doc.encoding||doc.content_encoding||'';
       out.push({id:'comp',band:(enc==='br'||enc==='zstd')?'good':enc==='gzip'?'ok':enc?'poor':'na',
         text:enc||'-',label:'encoding',age:stale});
-      const tls=(d.http&&d.http.tls_version)||'';
+      const tls=(d.http_checks&&d.http_checks.tls_version)||'';
       out.push({id:'tls',band:tls.includes('1.3')?'good':tls?'ok':'na',
         text:tls||'-',label:'TLS',age:stale});
-      const cv=(d.http&&d.http.cache)||[];
+      const cv=(d.http_checks&&d.http_checks.cache)||[];
       const tot=cv.length, cacheN=cv.filter(x=>x.cacheable).length;
       const pct=tot?Math.round(cacheN/tot*100):0;
       out.push({id:'cache',band:tot?(pct>=80?'good':pct>=50?'ok':'poor'):'na',
@@ -96,7 +96,7 @@ document.addEventListener('alpine:init', () => {
                return !seen.has(k)&&(seen.add(k),true)});
            }catch(e){ this.det=null; this.findings=[] }
       }
-      this.draw();
+      setTimeout(()=>this.draw(),0);
     },
     // add/edit/delete monitored sites via the new API
     async addSite(){
@@ -138,7 +138,7 @@ document.addEventListener('alpine:init', () => {
     adhoc(){ return this.sites.filter(s=>!s.schedule); },
     // httpcaching.com-style checklists: header presence + encoding results
     signalList(){
-      const d=this.det||{}; const sig=(d.http&&d.http.signals)||{};
+      const d=this.det||{}; const sig=(d.http_checks&&d.http_checks.signals)||{};
       const out=[];
       for(const k of ['cache-control','expires','last-modified','etag','vary',
                       'age','cf-cache-status','x-cache','x-cache-hits'])
@@ -146,7 +146,7 @@ document.addEventListener('alpine:init', () => {
       return out;
     },
     encList(){
-      const d=this.det||{}; const enc=(d.http&&d.http.encodings)||{};
+      const d=this.det||{}; const enc=(d.http_checks&&d.http_checks.encodings)||{};
       const out=[];
       for(const k of ['br','gzip','zstd'])
         out.push({l:k,ok:!!(enc[k]&&enc[k].ok)});
