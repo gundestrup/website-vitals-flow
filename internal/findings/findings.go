@@ -440,3 +440,18 @@ func sevOf(b score.Band) measure.Severity {
 	}
 	return measure.SevInfo
 }
+
+// Dedup drops findings identical by id+title+detail (merge order
+// between deep collect and post-persist can double-append).
+func Dedup(fs []Finding) []Finding {
+	seen := map[string]bool{}
+	out := fs[:0]
+	for _, f := range fs {
+		k := f.ID + "|" + f.Title + "|" + f.Detail
+		if !seen[k] {
+			seen[k] = true
+			out = append(out, f)
+		}
+	}
+	return out
+}
