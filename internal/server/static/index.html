@@ -95,6 +95,13 @@
       <img x-bind:src="shotSrc()" alt="page after load"></a>
     </div>
   </div>
+  <!-- signal checklists: compression + cache headers -->
+  <div class=signal-row x-show="encList().length||signalList().length">
+    <span class=metric-lbl>compression</span>
+    <template x-for="it in encList()"><span class="signal" :class="it.ok?'ok':''" x-text="(it.ok?'✓ ':'✗ ')+it.l"></span></template>
+    <span class=metric-lbl style="margin-left:1em">cache signals</span>
+    <template x-for="it in signalList()"><span class="signal" :class="it.ok?'ok':''" x-text="(it.ok?'✓ ':'✗ ')+it.l"></span></template>
+  </div>
   <h2 class="title is-5 section-heading">Trends</h2>
   <div class="trend-grid">
     <div class=trend-cell><div class=metric-lbl>TTFB</div><div class=trend-chart><canvas id="tr-ttfb"></canvas></div></div>

@@ -84,3 +84,9 @@ body { min-height: 100vh; background: var(--wvf-paper); color: var(--wvf-ink); }
 .shot-card { flex:1; border:1px solid var(--wvf-line); border-radius:6px;
   overflow:hidden; background:var(--wvf-bg-soft,#fff); min-width:240px; }
 .shot-card img { width:100%; display:block; object-fit:cover; }
+
+.signal-row { display:flex; gap:.6em; flex-wrap:wrap; align-items:center;
+  margin:-.6em 0 1.2em; padding:.5em .7em; border:1px solid var(--wvf-line);
+  border-radius:6px; background:var(--wvf-bg-soft,#fff); }
+.signal { font-size:.72rem; font-family:var(--wvf-mono); color:var(--wvf-muted); }
+.signal.ok { color:#2e7d32; }
