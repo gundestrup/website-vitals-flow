@@ -1,29 +1,43 @@
-<!doctype html><html><head><meta charset=utf-8><title>website-vitals-flow</title>
+<!doctype html><html data-theme="light"><head><meta charset=utf-8><title>website-vitals-flow</title>
 <link rel=stylesheet href=/vendor/bulma.min.css><link rel=stylesheet href=/style.css></head>
-<body><section class=section><div class=container>
-<h1 class=title>website-vitals-flow</h1>
-<div id=app x-data="dash" x-init="load()">
-<div class=notification is-info is-light x-show="jobs.length" x-cloak>
-  <template x-for="j in jobs.slice(0,4)"><div x-text="j.state+': '+(j.detail||'')"></div></template>
-</div>
-<table class="table is-fullwidth is-hoverable"><thead>
+<body><section class=section><div class="container" style="max-width:1120px">
+<p class=eyebrow>website-vitals-flow</p>
+<h1 class="title is-4 section-heading">Monitored sites</h1>
+<div x-data="dash" x-init="load()">
+<template x-if="jobs.length"><div class="box is-shadowless" style="border:1px solid var(--wvf-line);padding:.7em">
+  <template x-for="j in jobs.slice(0,4)"><div class="job-row mono" x-text="j.state+': '+(j.detail||'')"></div></template>
+</div></template>
+<div class=table-container><table class="table is-fullwidth is-hoverable"><thead>
 <tr><th>site</th><th>schedule</th><th>last TTFB</th><th>last LCP</th><th>last CLS</th><th></th></tr></thead>
 <tbody><template x-for="s in sites"><tr>
-  <td><a href="#" @click.prevent="open(s.key)" x-text="s.label||s.key"></a></td>
-  <td x-text="s.schedule||'manual'"></td>
-  <td x-text="fmt(last[s.key]&&last[s.key].ttfb_ms)+' ms'"></td>
-  <td x-text="fmt(last[s.key]&&last[s.key].lcp_ms)+' ms'"></td>
-  <td x-text="last[s.key]?last[s.key].cls.toFixed(3):'-'"></td>
-  <td><button class="button is-small" @click="scan(s.key)" x-bind:disabled="busy">scan now</button></td>
-</tr></template></tbody></table>
-<div x-show="sel"><h2 class=subtitle x-text="'trend — '+sel"></h2>
-  <canvas id=chart></canvas>
-  <table class="table is-fullwidth"><thead><tr><th>id</th><th>when</th><th>engine</th><th>ttfb</th><th>lcp</th><th>cls</th><th>tbt</th><th>proto</th></tr></thead>
+  <td><a href="#" @click.prevent="open(s.key)" x-text="s.label||s.key"></a>
+      <span class="tag is-light" x-show="s.deep">deep</span>
+      <span class="tag is-light" x-show="s.only" x-text="s.only"></span></td>
+  <td class=mono x-text="s.schedule||'manual'"></td>
+  <td class=mono x-text="fmt(last[s.key]&&last[s.key].ttfb_ms)+' ms'"></td>
+  <td class=mono x-text="fmt(last[s.key]&&last[s.key].lcp_ms)+' ms'"></td>
+  <td class=mono x-text="last[s.key]?last[s.key].cls.toFixed(3):'-'"></td>
+  <td><button class="button is-small is-primary" @click="scan(s.key)" x-bind:disabled="busy">scan now</button></td>
+</tr></template></tbody></table></div>
+<div x-show="sel" style="margin-top:2em">
+  <p class=eyebrow x-text="sel"></p>
+  <h2 class="title is-5 section-heading">Trend</h2>
+  <div class="box is-shadowless" style="border:1px solid var(--wvf-line)"><canvas id=chart></canvas></div>
+  <h2 class="title is-5 section-heading" x-show="findings.length">Findings</h2>
+  <template x-for="f in findings"><div class="job-row" style="padding:.4em 0">
+    <span x-bind:class="'sev-'+f.severity" x-text="'['+f.severity+']'"></span>
+    <span x-text="f.title"></span>
+    <a x-show="f.link" x-bind:href="f.link" target="_blank" rel="noopener" x-text="'→ guide'"></a>
+  </div></template>
+  <h2 class="title is-5 section-heading">Runs</h2>
+  <div class=table-container><table class="table is-fullwidth"><thead>
+  <tr><th>id</th><th>when</th><th>engine</th><th>ttfb</th><th>lcp</th><th>cls</th><th>tbt</th><th>proto</th></tr></thead>
   <tbody><template x-for="r in runs"><tr>
-    <td x-text="r.ID"></td><td x-text="r.started_at.slice(0,16).replace('T',' ')"></td>
-    <td x-text="r.engine"></td><td x-text="fmt(r.ttfb_ms)"></td><td x-text="fmt(r.lcp_ms)"></td>
-    <td x-text="r.cls.toFixed(3)"></td><td x-text="fmt(r.tbt_ms)"></td><td x-text="r.http_protocol"></td>
-  </tr></template></tbody></table></div>
+    <td class=mono x-text="r.id"></td><td class=mono x-text="r.started_at.slice(0,16).replace('T',' ')"></td>
+    <td class=mono x-text="r.engine"></td><td class=mono x-text="fmt(r.ttfb_ms)"></td>
+    <td class=mono x-text="fmt(r.lcp_ms)"></td><td class=mono x-text="r.cls.toFixed(3)"></td>
+    <td class=mono x-text="fmt(r.tbt_ms)"></td><td class=mono x-text="r.http_protocol"></td>
+  </tr></template></tbody></table></div></div>
 </div></div></section>
 <script src=/vendor/chart.umd.js></script><script src=/vendor/cdn.min.js defer></script>
 <script src=/app.js></script></body></html>

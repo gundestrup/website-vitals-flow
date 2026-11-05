@@ -1,5 +1,50 @@
-body{font-family:system-ui,sans-serif;max-width:900px;margin:2em auto;padding:0 1em}
-table{width:100%;border-collapse:collapse}
-td,th{text-align:left;padding:.4em;border-bottom:1px solid #ddd}
-.job,.run{font:13px/1.6 ui-monospace,monospace;color:#555}
-button{cursor:pointer}
+:root {
+  --bulma-family-primary: "Avenir Next", "Trebuchet MS", sans-serif;
+  --bulma-family-code: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --wvf-paper: #f4f1e8;
+  --wvf-ink: #18352d;
+  --wvf-line: #d9d4c6;
+  --wvf-muted: #68756e;
+  /* one accent: Spacelab steel blue */
+  --wvf-steel-h: 210deg;
+  --wvf-steel-s: 39%;
+  --wvf-steel-l: 44%;
+  --wvf-steel: hsl(var(--wvf-steel-h), var(--wvf-steel-s), var(--wvf-steel-l));
+  --bulma-primary-h: var(--wvf-steel-h);
+  --bulma-primary-s: var(--wvf-steel-s);
+  --bulma-primary-l: var(--wvf-steel-l);
+  --bulma-primary-rgb: 68, 110, 155;
+  --bulma-primary-invert-l: 96%;
+  --bulma-link-h: var(--wvf-steel-h);
+  --bulma-link-s: var(--wvf-steel-s);
+  --bulma-link-l: var(--wvf-steel-l);
+  --bulma-link-rgb: 68, 110, 155;
+}
+html[data-theme="dark"] {
+  --wvf-paper: #141a16;
+  --wvf-ink: #e6ece8;
+  --wvf-line: #303933;
+  --wvf-muted: #98a69d;
+  --wvf-steel-l: 62%;
+  --bulma-primary-l: 62%;
+  --bulma-primary-rgb: 136, 171, 208;
+  --bulma-primary-invert-l: 8%;
+  --bulma-link-l: 62%;
+  --bulma-link-rgb: 136, 171, 208;
+}
+[x-cloak] { display: none !important; }
+body { min-height: 100vh; background: var(--wvf-paper); color: var(--wvf-ink); }
+.eyebrow { color: var(--wvf-steel); font-size: .72rem; font-weight: 800;
+  letter-spacing: .17em; text-transform: uppercase; }
+.stat-number { color: var(--wvf-ink); font-family: Georgia, "Times New Roman", serif;
+  font-size: 2.1rem; line-height: 1; }
+.stat-label { color: var(--wvf-muted); font-size: .76rem; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; }
+.section-heading { font-family: Georgia, "Times New Roman", serif; color: var(--wvf-ink); }
+.table-container { border: 1px solid var(--wvf-line); border-radius: 8px; }
+.table { background: transparent; }
+.job-row + .job-row { border-top: 1px solid var(--wvf-line); }
+.mono { font-family: var(--bulma-family-code); font-size: .85rem; }
+.sev-poor { color: #c0392b; font-weight: 700; }
+.sev-warn { color: #b9770e; font-weight: 700; }
+.sev-info { color: var(--wvf-muted); }

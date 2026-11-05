@@ -1,6 +1,6 @@
 document.addEventListener('alpine:init', () => {
   Alpine.data('dash', () => ({
-    sites: [], last: {}, jobs: [], runs: [], sel: '', busy: false, chart: null,
+    sites: [], last: {}, jobs: [], runs: [], sel: '', busy: false, chart: null, findings: [],
     fmt(v){ return v==null?'-':Math.round(v) },
     async j(u,o){ const r=await fetch(u,o); return r.json() },
     async load(){
@@ -14,6 +14,10 @@ document.addEventListener('alpine:init', () => {
     async open(key){
       this.sel=key;
       this.runs=(await this.j('/api/sites/'+key+'/runs'))||[];
+      if(this.runs.length){
+        const det=await this.j('/api/runs/'+this.runs[0].id);
+        try{ this.findings=JSON.parse(det.detail_json).findings||[] }catch(e){ this.findings=[] }
+      }
       this.draw();
     },
     async scan(key){
