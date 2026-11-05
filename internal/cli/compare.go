@@ -1,12 +1,10 @@
-// Package cli implements the wvf command surface (cobra).
 package cli
 
 import (
 	"fmt"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/store"
-
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/sitekey"
+	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -59,5 +57,34 @@ func compareCmd() *cobra.Command {
 	cmd.Flags().StringVar(&cfgPath, "config", "", "path to wvf.yml")
 	cmd.Flags().Int64Var(&baseID, "base", 0, "baseline run id (default: oldest)")
 	cmd.Flags().Float64Var(&thresh, "thresh", 15, "regression flag threshold %")
+	return cmd
+}
+
+func jobsCmd() *cobra.Command {
+	var cfgPath string
+	var limit int
+	cmd := &cobra.Command{
+		Use:   "jobs",
+		Short: "List recent jobs (queued/running/done/failed)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			st, _, err := openStore(cfgPath)
+			if err != nil {
+				return err
+			}
+			defer st.Close()
+			jobs, err := st.RecentJobs(ctx0, limit)
+			if err != nil {
+				return err
+			}
+			for _, j := range jobs {
+				fmt.Printf("%-4d %-7s %-9s %s %s\n",
+					j.ID, j.State, j.Kind, j.QueuedAt[5:19], j.Detail)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&cfgPath, "config", "", "path to wvf.yml")
+	cmd.Flags().IntVar(&limit, "limit", 20, "max jobs to list")
 	return cmd
 }

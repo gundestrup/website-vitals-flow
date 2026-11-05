@@ -55,6 +55,10 @@ var tools = []map[string]any{
 		"inputSchema": map[string]any{"type": "object", "properties": map[string]any{
 			"id": map[string]string{"type": "integer"},
 		}, "required": []string{"id"}}},
+	{"name": "jobs", "description": "Recent jobs (queued/running/done/failed) — check background scan state. Args: limit(optional).",
+		"inputSchema": map[string]any{"type": "object", "properties": map[string]any{
+			"limit": map[string]string{"type": "integer"},
+		}}},
 	{"name": "prune", "description": "Apply retention rules to all sites now.",
 		"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}}},
 }
@@ -183,6 +187,16 @@ func callTool(ctx context.Context, st *store.Store, cfg config.Config,
 		_ = json.Unmarshal([]byte(run.DetailJSON), &det)
 		return okResult(map[string]any{
 			"run": run, "findings": det.Findings})
+	case "jobs":
+		limit := args.Limit
+		if limit == 0 {
+			limit = 20
+		}
+		jobs, err := st.RecentJobs(ctx, limit)
+		if err != nil {
+			return errResult(err.Error())
+		}
+		return okResult(jobs)
 	case "prune":
 		sites, err := st.ListSites(ctx)
 		if err != nil {
