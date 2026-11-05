@@ -123,6 +123,7 @@ document.addEventListener('alpine:init', () => {
           tension:.3,fill:true}];
         if(sp.b){ds.push(
           {data:labels.map(()=>sp.b[0]),borderColor:'#2e7d32',borderDash:[5,4],pointRadius:0,borderWidth:1.4},
+          {data:labels.map(()=>(sp.b[0]+sp.b[1])/2),borderColor:'#f9a825',borderDash:[5,4],pointRadius:0,borderWidth:1.4},
           {data:labels.map(()=>sp.b[1]),borderColor:'#c62828',borderDash:[5,4],pointRadius:0,borderWidth:1.4});}
         this.charts[sp.id]=new Chart(el,{type:'line',
           data:{labels,datasets:ds},
