@@ -122,8 +122,18 @@ func RunSiteScan(ctx context.Context, st *store.Store, cfg config.Config,
 	}
 	progress("http checks")
 	only := findings.ParseOnly(site.Only)
+	var engineErrs []measure.Finding
+	engErr := func(id, title string, err error) {
+		engineErrs = append(engineErrs, measure.Finding{ID: id,
+			Severity: measure.SevInfo, Category: "engine",
+			Title: title, Detail: err.Error()})
+	}
 	if findings.Want(only, "http") {
-		if hc, herr := httpcheck.Probe(scanCtx, res.URL); herr == nil {
+		hc, herr := httpcheck.Probe(scanCtx, res.URL)
+		if herr != nil {
+			engErr("http_error", "http checks failed", herr)
+		}
+		if herr == nil {
 			var assets []httpcheck.Asset
 			if n := len(res.Samples); n > 0 {
 				for _, rsp := range res.Samples[n-1].Responses {
@@ -135,12 +145,6 @@ func RunSiteScan(ctx context.Context, st *store.Store, cfg config.Config,
 			progress("h3 probe")
 			res.HTTP3 = http3.Probe(scanCtx, res.URL, hc.AltSvc)
 		}
-	}
-	var engineErrs []measure.Finding
-	engErr := func(id, title string, err error) {
-		engineErrs = append(engineErrs, measure.Finding{ID: id,
-			Severity: measure.SevInfo, Category: "engine",
-			Title: title, Detail: err.Error()})
 	}
 	if deepMode && findings.Want(only, "deep") {
 		progress("web-vitals attribution")
