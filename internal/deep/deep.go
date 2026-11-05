@@ -167,13 +167,14 @@ type LHReport struct {
 
 // LHFinding is one audit with a non-pass score.
 type LHFinding struct {
-	ID       string  `json:"id"`
-	Title    string  `json:"title"`
-	Score    float64 `json:"score"`
-	Display  string  `json:"display,omitempty"`
-	Link     string  `json:"link,omitempty"`
-	Savings  float64 `json:"savings_ms,omitempty"`
-	SavingsB float64 `json:"savings_bytes,omitempty"`
+	ID       string   `json:"id"`
+	Title    string   `json:"title"`
+	Score    float64  `json:"score"`
+	Display  string   `json:"display,omitempty"`
+	Link     string   `json:"link,omitempty"`
+	Savings  float64  `json:"savings_ms,omitempty"`
+	SavingsB float64  `json:"savings_bytes,omitempty"`
+	Items    []string `json:"items,omitempty"` // per-asset detail from LHR
 }
 
 type lhJSON struct {
@@ -190,6 +191,7 @@ type lhJSON struct {
 				WastedMs    float64 `json:"wastedMs"`
 				WastedBytes float64 `json:"wastedBytes"`
 			} `json:"summary"`
+			Items []map[string]any `json:"items"`
 		} `json:"details"`
 	} `json:"audits"`
 }
@@ -226,10 +228,47 @@ func Lighthouse(ctx context.Context, bin, url string) (*LHReport, error) {
 		if a.Details != nil {
 			f.Savings = a.Details.Summary.WastedMs
 			f.SavingsB = a.Details.Summary.WastedBytes
+			f.Items = lhItems(a.Details.Items, 5)
 		}
 		r.Findings = append(r.Findings, f)
 	}
 	return r, nil
+}
+
+// lhItems distills LHR details.items into short strings —
+// "url (~45KB)" / "selector" — capped at n.
+func lhItems(items []map[string]any, n int) []string {
+	var out []string
+	for _, it := range items {
+		if len(out) >= n {
+			break
+		}
+		var text string
+		if u, ok := it["url"].(string); ok && u != "" {
+			text = shortURL(u)
+		} else if node, ok := it["node"].(map[string]any); ok {
+			if sel, ok := node["selector"].(string); ok {
+				text = sel
+			}
+		}
+		if text == "" {
+			continue
+		}
+		if wb, ok := it["wastedBytes"].(float64); ok && wb > 1024 {
+			text += fmt.Sprintf(" (~%.0fKB)", wb/1024)
+		} else if wm, ok := it["wastedMs"].(float64); ok && wm > 1 {
+			text += fmt.Sprintf(" (~%.0fms)", wm)
+		}
+		out = append(out, text)
+	}
+	return out
+}
+
+func shortURL(u string) string {
+	if len(u) > 70 {
+		return "…" + u[len(u)-68:]
+	}
+	return u
 }
 
 // mdLink pulls the first [text](url) link from Lighthouse audit
