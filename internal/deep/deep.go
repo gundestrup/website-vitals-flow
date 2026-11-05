@@ -90,9 +90,9 @@ func CollectAttribution(ctx context.Context, url string) (*Attribution, []string
 	for i := 0; i < 3; i++ { // filmstrip-lite: 3 frames across settle
 		chromedp.Do(tab, chromedp.Sleep(500*time.Millisecond))
 		buf, err := chromedp.Run(tab, func(ctx context.Context, t *chromedp.Target) ([]byte, error) {
-			q := int64(40)
+			q := int64(60)
 			r, err := cdp.Call(ctx, t, page.CaptureScreenshot,
-				page.CaptureScreenshotParams{Format: "jpeg", Quality: &q})
+				page.CaptureScreenshotParams{Format: "webp", Quality: &q})
 			if err != nil {
 				return nil, err
 			}
