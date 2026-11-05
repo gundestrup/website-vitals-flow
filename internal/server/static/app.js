@@ -62,7 +62,7 @@ document.addEventListener('alpine:init', () => {
       const encs=(d.http_checks&&d.http_checks.encodings)||{};
       const encOk=k=>!!(encs[k]&&encs[k].ok);
       out.push({id:'comp',band:encOk('br')?'good':encOk('gzip')?'ok':'na',
-        text:enc||'-',label:'encoding',age:stale,
+        text:'',label:'compression',age:stale,
         lines:[{img:'/icons/brotli-compression-icon.svg',ok:encOk('br'),label:'br',title:'Brotli'},
           {img:'/icons/gzip-file-format-variant-svgrepo-com.svg',ok:encOk('gzip'),label:'gzip',title:'gzip'},
           {img:'/icons/zstd.svg',ok:encOk('zstd'),label:'zstd',title:'Zstandard'}]});
