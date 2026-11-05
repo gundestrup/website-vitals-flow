@@ -191,7 +191,7 @@ type lhJSON struct {
 				WastedMs    float64 `json:"wastedMs"`
 				WastedBytes float64 `json:"wastedBytes"`
 			} `json:"summary"`
-			Items []map[string]any `json:"items"`
+			Items json.RawMessage `json:"items"`
 		} `json:"details"`
 	} `json:"audits"`
 }
@@ -200,7 +200,10 @@ type lhJSON struct {
 // (unthrottled) throttling for localhost parity. Returns nil error
 // only when the binary exists and produces JSON.
 func Lighthouse(ctx context.Context, bin, url string) (*LHReport, error) {
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	// NB: deliberately NOT derived from the incoming ctx — by the time
+	// this runs, the caller's scan budget is usually nearly exhausted,
+	// and lighthouse needs its own full window.
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, bin, url,
 		"--output=json", "--quiet", "--only-categories=performance",
@@ -236,8 +239,19 @@ func Lighthouse(ctx context.Context, bin, url string) (*LHReport, error) {
 }
 
 // lhItems distills LHR details.items into short strings —
-// "url (~45KB)" / "selector" — capped at n.
-func lhItems(items []map[string]any, n int) []string {
+// "url (~45KB)" / "selector" — capped at n. LHR items can be a
+// list OR a keyed object depending on the audit.
+func lhItems(raw json.RawMessage, n int) []string {
+	var items []map[string]any
+	if err := json.Unmarshal(raw, &items); err != nil {
+		var keyed map[string]map[string]any
+		if err := json.Unmarshal(raw, &keyed); err != nil {
+			return nil
+		}
+		for _, v := range keyed {
+			items = append(items, v)
+		}
+	}
 	var out []string
 	for _, it := range items {
 		if len(out) >= n {
