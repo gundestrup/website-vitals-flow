@@ -60,6 +60,10 @@
     <button class="button is-small" @click="editSite(siteByKey(sel))">edit</button>
     <button class="button is-small" @click="prune(sel)">prune</button>
     <button class="button is-small is-light" @click="delSite(siteByKey(sel))">✕</button>
+    <span x-show="activeJob()" class=mono style="display:flex;align-items:center;gap:.5em;min-width:220px;justify-content:flex-end">
+      <progress class="progress is-small is-primary" style="width:120px;margin:0" max=100></progress>
+      <span x-text="jobText()" style="font-size:.72rem"></span>
+    </span>
   </span>
   <p class=eyebrow x-text="sel"></p>
   <template x-if="last[sel]"><div class="metric-grid">
@@ -95,7 +99,7 @@
     <td class=mono x-text="r.engine"></td><td class=mono x-text="fmt(r.ttfb_ms)"></td>
     <td class=mono x-text="fmt(r.lcp_ms)"></td><td class=mono x-text="r.cls.toFixed(3)"></td>
     <td class=mono x-text="fmt(r.tbt_ms)"></td><td><span class="tag is-light mono" x-text="r.http_protocol"></span></td>
-    <td class=mono><a x-bind:href="'/report/'+r.id" target="_blank" title="open run report">↗</a></td>
+    <td class=mono><a x-bind:href="'/site/'+sel+'/report/'+r.id" target="_blank" title="open run report">↗</a></td>
   </tr></template></tbody></table></div></div>
 </div></div></section>
 <script src=/vendor/chart.umd.js></script><script src=/vendor/cdn.min.js defer></script>

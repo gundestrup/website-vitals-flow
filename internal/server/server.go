@@ -42,6 +42,7 @@ func New(st *store.Store, cfg config.Config, r *jobs.Runner) http.Handler {
 	// SPA route: /site/<key> serves the same index (':' is legal in
 	// a path segment, so /site/localhost:8473 works directly)
 	mux.HandleFunc("GET /site/{key}", s.index)
+	mux.HandleFunc("GET /site/{key}/report/{id}", s.report)
 	mux.HandleFunc("POST /api/scan", s.scan)
 	mux.HandleFunc("POST /api/scan-now", s.scanNow)
 	mux.HandleFunc("POST /api/sites", s.siteAdd)
