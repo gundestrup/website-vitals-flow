@@ -36,10 +36,16 @@
       <div class="metric-lbl"><span x-text="m.label"></span><span class="metric-age" x-show="m.age" x-text="m.age+' ago'"></span></div>
     </div></template>
   </div></template>
-  <h2 class="title is-5 section-heading">Trend — timings</h2>
-  <div class="box is-shadowless" style="border:1px solid var(--wvf-line)"><canvas id=chart></canvas></div>
-  <h2 class="title is-5 section-heading">Trend — layout shift</h2>
-  <div class="box is-shadowless" style="border:1px solid var(--wvf-line)"><canvas id=chart2></canvas></div>
+  <h2 class="title is-5 section-heading">Trends</h2>
+  <div class="trend-grid">
+    <div class=trend-cell><div class=metric-lbl>TTFB</div><canvas id="tr-ttfb"></canvas></div>
+    <div class=trend-cell><div class=metric-lbl>FCP</div><canvas id="tr-fcp"></canvas></div>
+    <div class=trend-cell><div class=metric-lbl>LCP</div><canvas id="tr-lcp"></canvas></div>
+    <div class=trend-cell><div class=metric-lbl>CLS</div><canvas id="tr-cls"></canvas></div>
+    <div class=trend-cell><div class=metric-lbl>TBT</div><canvas id="tr-tbt"></canvas></div>
+    <div class=trend-cell><div class=metric-lbl>requests</div><canvas id="tr-reqs"></canvas></div>
+    <div class=trend-cell><div class=metric-lbl>weight</div><canvas id="tr-weight"></canvas></div>
+  </div>
   <h2 class="title is-5 section-heading" x-show="findings.length">Findings</h2>
   <template x-for="f in findings"><div class="job-row" style="padding:.4em 0">
     <span x-bind:class="'sev-'+f.severity" x-text="'['+f.severity+']'"></span>
