@@ -92,3 +92,14 @@ body { min-height: 100vh; background: var(--wvf-paper); color: var(--wvf-ink); }
 .signal.ok { color:#2e7d32; }
 
 .proto-lines { font-size:.68rem; line-height:1.5; }
+
+/* icon registry: mask-image spans, themed via color: (KB pattern —
+   img svg can't inherit color; CSP blocks inline styles anyway) */
+.wvf-icon { display:inline-block; width:.85em; height:.85em;
+  background-color:currentColor; vertical-align:-.08em;
+  -webkit-mask-size:contain; mask-size:contain;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  -webkit-mask-position:center; mask-position:center; }
+.icon-check { -webkit-mask-image:url(/icons/check.svg); mask-image:url(/icons/check.svg); }
+.icon-cross { -webkit-mask-image:url(/icons/cross.svg); mask-image:url(/icons/cross.svg); }
+.wvf-icon.ok { color:#2e7d32 } .wvf-icon.no { color:#c62828 }

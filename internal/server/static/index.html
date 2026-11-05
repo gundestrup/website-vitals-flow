@@ -88,7 +88,8 @@
         <div class="metric-val mono" x-text="m.text"></div>
         <template x-if="m.lines"><div class=proto-lines>
           <template x-for="ln in m.lines"><div class=mono>
-            <span x-show="ln[1]" style="color:#2e7d32">✔</span><span x-show="!ln[1]" style="color:#c62828">✘</span>
+            <span x-show="ln[1]" class="wvf-icon icon-check ok"></span>
+            <span x-show="!ln[1]" class="wvf-icon icon-cross no"></span>
             <span x-text="ln[0]"></span></div></template>
         </div></template>
         <div class="metric-lbl"><span x-text="m.label"></span><span class="metric-age" x-show="m.age" x-text="m.age+' ago'"></span></div>
@@ -103,9 +104,15 @@
   <!-- signal checklists: compression + cache headers -->
   <div class=signal-row x-show="encList().length||signalList().length">
     <span class=metric-lbl>compression</span>
-    <template x-for="it in encList()"><span class="signal" :class="it.ok?'ok':''" x-text="(it.ok?'✓ ':'✗ ')+it.l"></span></template>
+    <template x-for="it in encList()"><span class="signal" :class="it.ok?'ok':''">
+      <span class="wvf-icon icon-check" x-show="it.ok"></span>
+      <span class="wvf-icon icon-cross" x-show="!it.ok"></span>
+      <span x-text="it.l"></span></span></template>
     <span class=metric-lbl style="margin-left:1em">cache signals</span>
-    <template x-for="it in signalList()"><span class="signal" :class="it.ok?'ok':''" x-text="(it.ok?'✓ ':'✗ ')+it.l"></span></template>
+    <template x-for="it in signalList()"><span class="signal" :class="it.ok?'ok':''">
+      <span class="wvf-icon icon-check" x-show="it.ok"></span>
+      <span class="wvf-icon icon-cross" x-show="!it.ok"></span>
+      <span x-text="it.l"></span></span></template>
   </div>
   <h2 class="title is-5 section-heading">Trends</h2>
   <div class="trend-grid">
