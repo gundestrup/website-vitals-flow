@@ -37,11 +37,17 @@ document.addEventListener('alpine:init', () => {
       out.push({id:'',band:'na',text:r.request_count??'-',label:'requests',age:stale});
       out.push({id:'',band:'na',text:r.page_bytes?Math.round(r.page_bytes/1024)+'KB':'-',label:'weight',age:stale});
       out.push({id:'',band:'na',text:r.dom_nodes??'-',label:'DOM nodes',age:stale});
+      // protocol widget: 3-line status (h3 advertised / h2 negotiated / h1 baseline)
       const proto=r.http_protocol||'';
-      const h3ok=(this.det&&this.det.http3&&this.det.http3.advertised);
-      const plist=(proto.startsWith('h3')||h3ok)?'h1/h2/h3':proto.startsWith('h2')?'h1/h2':proto||'-';
-      out.push({id:'proto',band:(proto.startsWith('h3')||h3ok)?'good':proto.startsWith('h2')?'ok':proto?'poor':'na',
-        text:plist,label:'protocol',age:stale});
+      const d0=this.det||{};
+      const h3ok=proto.startsWith('h3')||!!(d0.http3&&d0.http3.advertised);
+      const hcProto=(d0.http_checks&&d0.http_checks.proto)||'';
+      const h2ok=h3ok||proto.startsWith('h2')||hcProto.indexOf('2')>-1;
+      const h1ok=!!proto||hcProto!=='';
+      const nSup=[h3ok,h2ok,h1ok].filter(Boolean).length;
+      out.push({id:'proto',band:nSup>=3?'good':nSup===2?'ok':nSup===1?'poor':'na',
+        text:'',label:'protocol',age:stale,
+        lines:[['HTTP/3',h3ok],['HTTP/2',h2ok],['HTTP/1.1',h1ok]]});
       // detail_json fields (encoding/tls/dom/cache live per-response)
       const d=this.det||{};
       const smp=(d.samples&&d.samples.length)?d.samples[d.samples.length-1]:{};

@@ -38,6 +38,7 @@ type Result struct {
 	Status     int                       `json:"status"`
 	Redirects  []string                  `json:"redirects,omitempty"`
 	TLSVersion string                    `json:"tls_version,omitempty"`
+	Proto      string                    `json:"proto,omitempty"` // negotiated: HTTP/1.1, HTTP/2.0
 	Server     string                    `json:"server,omitempty"`
 	AltSvc     string                    `json:"alt_svc,omitempty"`
 	Encodings  map[string]*EncodingProbe `json:"encodings"`
@@ -89,6 +90,7 @@ func Probe(ctx context.Context, rawurl string) (*Result, error) {
 	res.Status = lastResp.StatusCode
 	res.FinalURL = lastResp.Request.URL.String()
 	res.Redirects = redirects
+	res.Proto = lastResp.Proto
 	res.Server = lastResp.Header.Get("Server")
 	res.AltSvc = lastResp.Header.Get("Alt-Svc")
 	res.Signals = map[string]bool{}
