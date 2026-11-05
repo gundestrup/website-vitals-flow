@@ -8,15 +8,15 @@ import (
 
 // Job is a queued/running/finished unit of work (scan).
 type Job struct {
-	ID         int64
-	Kind       string
-	SiteID     int64
-	State      string
-	Detail     string
-	QueuedAt   string
-	StartedAt  string
-	FinishedAt string
-	Deep       bool
+	ID         int64  `json:"id"`
+	Kind       string `json:"kind"`
+	SiteID     int64  `json:"site_id"`
+	State      string `json:"state"`
+	Detail     string `json:"detail"`
+	QueuedAt   string `json:"queued_at"`
+	StartedAt  string `json:"started_at"`
+	FinishedAt string `json:"finished_at"`
+	Deep       bool   `json:"deep"`
 }
 
 // InsertJob enqueues a job row and returns its id.

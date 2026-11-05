@@ -5,6 +5,8 @@ document.addEventListener('alpine:init', () => {
     async j(u,o){ const r=await fetch(u,o); return r.json() },
     async load(){
       this.sites = await this.j('/api/sites') || [];
+      const h=location.hash.slice(1) || new URLSearchParams(location.search).get('site');
+      if(h && !this.sel){ this.sel=h; this.open(h); }
       this.jobs = await this.j('/api/jobs') || [];
       for (const s of this.sites){
         const rr = await this.j('/api/sites/'+s.key+'/runs');

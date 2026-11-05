@@ -19,6 +19,10 @@ Lighthouse audits, PSI). Single Go binary, SQLite state.
 
 ![dashboard](docs/img/dashboard.png)
 
+Site detail — trend chart, findings, run history (deeplink `?site=<key>` or `#<key>`):
+
+![site detail](docs/img/site-detail.png)
+
 ## API (IDE/agent-callable)
 
 Full reference: [docs/api.md](docs/api.md) — REST endpoints, VS Code
