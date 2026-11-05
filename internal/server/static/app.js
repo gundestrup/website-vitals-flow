@@ -39,8 +39,9 @@ document.addEventListener('alpine:init', () => {
       out.push({id:'',band:'na',text:r.dom_nodes??'-',label:'DOM nodes',age:stale});
       const proto=r.http_protocol||'';
       const h3ok=(this.det&&this.det.http3&&this.det.http3.advertised);
-      out.push({id:'proto',band:(h3ok||proto.startsWith('h3')||proto.startsWith('h2'))?'good':proto?'ok':'na',
-        text:(proto||'-')+(h3ok?' +h3':''),label:'protocol',age:stale});
+      const plist=(proto.startsWith('h3')||h3ok)?'h1/h2/h3':proto.startsWith('h2')?'h1/h2':proto||'-';
+      out.push({id:'proto',band:(proto.startsWith('h3')||h3ok)?'good':proto.startsWith('h2')?'ok':proto?'poor':'na',
+        text:plist,label:'protocol',age:stale});
       // detail_json fields (encoding/tls/dom/cache live per-response)
       const d=this.det||{};
       const smp=(d.samples&&d.samples.length)?d.samples[d.samples.length-1]:{};
