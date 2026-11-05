@@ -111,8 +111,15 @@ document.addEventListener('alpine:init', () => {
           return bandColor[v>sp.b[1]?'poor':v>sp.b[0]?'ok':'good'];
         });
         const ds=[{label:sp.label,data:vals,
-          borderColor:'hsl(210 39% 44%)',backgroundColor:'hsl(210 39% 44% / .12)',
+          backgroundColor:'hsl(210 39% 44% / .12)',
           pointBackgroundColor:ptColor,pointBorderColor:ptColor,pointRadius:3,
+          // segment colored by destination point's band — the line
+          // itself goes green/yellow/red like LH score bands
+          segment:{borderColor:c=>{
+            const v=vals[c.p1DataIndex];
+            if(v==null||!sp.b) return bandColor.na;
+            return bandColor[v>sp.b[1]?'poor':v>sp.b[0]?'ok':'good'];
+          }},
           tension:.3,fill:true}];
         if(sp.b){ds.push(
           {data:labels.map(()=>sp.b[0]),borderColor:'#2e7d32',borderDash:[5,4],pointRadius:0,borderWidth:1.4},
