@@ -24,9 +24,15 @@ document.addEventListener('alpine:init', () => {
       out.push({id:'',band:'na',text:r.request_count??'-',label:'requests'});
       out.push({id:'',band:'na',text:r.page_bytes?Math.round(r.page_bytes/1024)+'KB':'-',label:'weight'});
       out.push({id:'',band:'na',text:r.dom_nodes??'-',label:'DOM nodes'});
-      out.push({id:'',band:'na',text:r.http_protocol||'-',label:'protocol'});
-      out.push({id:'',band:'na',text:r.content_encoding||'-',label:'encoding'});
-      out.push({id:'',band:'na',text:r.tls_version||'-',label:'TLS'});
+      const proto=r.http_protocol||'';
+      out.push({id:'proto',band:proto.startsWith('h3')||proto.startsWith('h2')?'good':proto?'ok':'na',
+        text:proto||'-',label:'protocol'});
+      const enc=r.content_encoding||'';
+      out.push({id:'comp',band:(enc==='br'||enc==='zstd')?'good':enc==='gzip'?'ok':enc?'poor':'na',
+        text:enc||'-',label:'encoding'});
+      const tls=r.tls_version||'';
+      out.push({id:'tls',band:tls.includes('1.3')?'good':tls?'ok':'na',
+        text:tls||'-',label:'TLS'});
       return out;
     },
     async j(u,o){ const r=await fetch(u,o); return r.json() },

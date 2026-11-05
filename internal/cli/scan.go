@@ -105,6 +105,10 @@ func scanCmd() *cobra.Command {
 			}
 			res.Findings = findings.Filter(findings.Analyze(res), only)
 			res.Findings = append(res.Findings, findings.FromLighthouse(res.Lighthouse)...)
+			res.Findings = append(res.Findings, findings.FromAttribution(res.Attribution)...)
+			res.Findings = append(res.Findings, findings.FromPSI(res.PSI)...)
+			res.Findings = append(res.Findings, findings.FromAttribution(res.Attribution)...)
+			res.Findings = append(res.Findings, findings.FromPSI(res.PSI)...)
 			if psiMode {
 				if r, perr := psi.Fetch(ctx, res.URL, cfg.PSIKey); perr == nil {
 					res.PSI = r
