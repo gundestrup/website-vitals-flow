@@ -12,7 +12,7 @@ document.addEventListener('alpine:init', () => {
       return this.band(id,v).replace('band-','');
     },
     fmtv(id,v){ return id==='cls'?(v==null?'-':v.toFixed(3)):(v==null?'-':Math.round(v)+'ms') },
-    chart2: null, det: null,
+    det: null, charts: {},
     age(ts){
       const ms=Date.now()-new Date(ts).getTime();
       const m=ms/6e4; if(m<60) return Math.max(1,Math.round(m))+'m';
@@ -85,32 +85,30 @@ document.addEventListener('alpine:init', () => {
     },
     draw(){
       const rs=[...this.runs].reverse();
-      const per={};
-      for(const e of ['cdp','lighthouse','psi']){
-        per[e]=rs.filter(r=>r.engine===e);
-      }
-      const ds=[];
-      for(const e of Object.keys(per)){
-        if(!per[e].length) continue;
-        ds.push({label:e+' TTFB',data:per[e].map(r=>r.ttfb_ms),borderColor:'#888',tension:.3,hidden:true});
-        ds.push({label:e+' LCP',data:per[e].map(r=>r.lcp_ms),tension:.3});
-        ds.push({label:e+' FCP',data:per[e].map(r=>r.fcp_ms),borderDash:[4,4],tension:.3,hidden:true});
-      }
       const labels=rs.map(r=>r.started_at.slice(5,16));
-      if(this.chart) this.chart.destroy();
-      this.chart=new Chart(document.getElementById('chart'),{type:'line',
-        data:{labels,datasets:ds},
-        options:{plugins:{legend:{display:true}},scales:{y:{title:{text:'ms',display:true}}}}});
-      // second chart: CLS + request count (separate scale from ms)
-      const c2=document.getElementById('chart2');
-      if(c2){
-        if(this.chart2) this.chart2.destroy();
-        this.chart2=new Chart(c2,{type:'line',
-          data:{labels,datasets:[
-            {label:'CLS',data:rs.map(r=>r.cls),tension:.3},
-            {label:'requests',data:rs.map(r=>r.request_count),tension:.3,yAxisID:'y1'}]},
-          options:{scales:{y:{title:{text:'CLS',display:true}},
-            y1:{position:'right',title:{text:'reqs',display:true},grid:{drawOnChartArea:false}}}}});
+      const KB=b=>b?Math.round(b/1024):null;
+      const specs=[
+        {id:'ttfb',label:'TTFB ms',v:r=>r.ttfb_ms,b:[800,1800]},
+        {id:'fcp',label:'FCP ms',v:r=>r.fcp_ms,b:[1800,3000]},
+        {id:'lcp',label:'LCP ms',v:r=>r.lcp_ms,b:[2500,4000]},
+        {id:'cls',label:'CLS',v:r=>r.cls,b:[0.1,0.25]},
+        {id:'tbt',label:'TBT ms',v:r=>r.tbt_ms,b:[200,600]},
+        {id:'reqs',label:'requests',v:r=>r.request_count,b:[75,150]},
+        {id:'weight',label:'weight KB',v:r=>KB(r.page_bytes),b:[1536,3072]},
+      ];
+      for(const sp of specs){
+        const el=document.getElementById('tr-'+sp.id); if(!el) continue;
+        if(this.charts[sp.id]) this.charts[sp.id].destroy();
+        const ds=[{label:sp.label,data:rs.map(sp.v),
+          borderColor:'hsl(210 39% 44%)',backgroundColor:'hsl(210 39% 44% / .12)',
+          tension:.3,pointRadius:2,fill:true}];
+        if(sp.b){ds.push(
+          {data:labels.map(()=>sp.b[0]),borderColor:'#2e7d32',borderDash:[5,4],pointRadius:0,borderWidth:1.4},
+          {data:labels.map(()=>sp.b[1]),borderColor:'#c62828',borderDash:[5,4],pointRadius:0,borderWidth:1.4});}
+        this.charts[sp.id]=new Chart(el,{type:'line',
+          data:{labels,datasets:ds},
+          options:{plugins:{legend:{display:false}},maintainAspectRatio:false,
+            scales:{x:{display:false},y:{ticks:{font:{size:9}}}}}});
       }
     }
   }));

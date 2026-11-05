@@ -213,6 +213,56 @@ func Analyze(res *measure.Result) []Finding {
 			}
 		}
 	}
+	// --- JS/CSS delivery budgets (best practice) ---
+	var jsB, cssB int64
+	var jsN, cssN int
+	var bigJS, bigCSS []string
+	for _, r := range s.Responses {
+		u := strings.ToLower(r.URL)
+		js := strings.Contains(r.MimeType, "javascript") || strings.HasSuffix(u, ".js")
+		css := strings.Contains(r.MimeType, "css") || strings.HasSuffix(u, ".css")
+		switch {
+		case js:
+			jsN++
+			jsB += r.EncodedBytes
+			if r.EncodedBytes > 500_000 {
+				bigJS = append(bigJS, short(r.URL))
+			}
+		case css:
+			cssN++
+			cssB += r.EncodedBytes
+			if r.EncodedBytes > 200_000 {
+				bigCSS = append(bigCSS, short(r.URL))
+			}
+		}
+	}
+	if jsB > 1_500_000 {
+		out = append(out, Finding{ID: "js_weight", Severity: measure.SevWarn, Category: "js",
+			Title: fmt.Sprintf("page ships %.1f MB of JavaScript across %d files", float64(jsB)/1e6, jsN),
+			Link:  "https://web.dev/articles/optimize-long-tasks"})
+	}
+	for _, u := range bigJS {
+		out = append(out, Finding{ID: "js_bundle", Severity: measure.SevWarn, Category: "js",
+			Title:  "very large JS bundle: " + u,
+			Detail: "split/lazy-load; single bundles >500KB inflate parse+eval and TBT",
+			Link:   "https://web.dev/articles/reduce-javascript-payloads-with-code-splitting"})
+	}
+	if cssB > 300_000 {
+		out = append(out, Finding{ID: "css_weight", Severity: measure.SevWarn, Category: "css",
+			Title: fmt.Sprintf("page ships %d KB of CSS across %d files", cssB/1024, cssN),
+			Link:  "https://web.dev/articles/reduce-unneeded-javascript"})
+	}
+	for _, u := range bigCSS {
+		out = append(out, Finding{ID: "css_bundle", Severity: measure.SevInfo, Category: "css",
+			Title: "large stylesheet: " + u,
+			Link:  "https://web.dev/articles/extract-critical-css"})
+	}
+	if jsN > 15 {
+		out = append(out, Finding{ID: "js_count", Severity: measure.SevInfo, Category: "js",
+			Title: fmt.Sprintf("%d JS files — many bundles", jsN),
+			Link:  "https://web.dev/articles/reduce-javascript-payloads-with-code-splitting"})
+	}
+
 	return out
 }
 
