@@ -78,3 +78,9 @@ body { min-height: 100vh; background: var(--wvf-paper); color: var(--wvf-ink); }
    otherwise the canvas overflows the card bottom */
 .trend-chart { position:relative; height:135px; margin-top:.2em; }
 
+
+.detail-top { display:flex; gap:.9em; align-items:stretch; }
+.detail-top .metric-grid { flex:2; margin-bottom:1.2em; }
+.shot-card { flex:1; border:1px solid var(--wvf-line); border-radius:6px;
+  overflow:hidden; background:var(--wvf-bg-soft,#fff); min-width:240px; }
+.shot-card img { width:100%; display:block; object-fit:cover; }
