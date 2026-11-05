@@ -5,6 +5,7 @@ package deep
 import (
 	"context"
 	_ "embed"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/input"
+	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 )
 
@@ -75,22 +77,59 @@ const wvCollect = `(() => new Promise(done => {
 }))()`
 
 // CollectAttribution opens its own tab (sample tabs are closed after
-// measure.Run), navigates, injects the vendored attribution build, and
-// returns the debugger payload.
-func CollectAttribution(ctx context.Context, url string) (*Attribution, error) {
+// measure.Run), navigates, snaps filmstrip frames during settle,
+// clicks several spots for worst-case lab-INP, injects the vendored
+// attribution build, and returns the debugger payload + frames.
+func CollectAttribution(ctx context.Context, url string) (*Attribution, []string, error) {
 	tab, tcancel := chromedp.NewContext(ctx)
 	defer tcancel()
-	if err := chromedp.Do(tab, chromedp.Navigate(url),
-		chromedp.Sleep(1500*time.Millisecond)); err != nil {
-		return nil, err
+	if err := chromedp.Do(tab, chromedp.Navigate(url)); err != nil {
+		return nil, nil, err
 	}
-	// lab-INP: a trusted input event makes Event Timing emit real
-	// interaction entries — web-vitals can then attribute the
-	// interaction's target/type/next-paint delay.
+	var frames []string
+	for i := 0; i < 3; i++ { // filmstrip-lite: 3 frames across settle
+		chromedp.Do(tab, chromedp.Sleep(500*time.Millisecond))
+		buf, err := chromedp.Run(tab, func(ctx context.Context, t *chromedp.Target) ([]byte, error) {
+			q := int64(40)
+			r, err := cdp.Call(ctx, t, page.CaptureScreenshot,
+				page.CaptureScreenshotParams{Format: "jpeg", Quality: &q})
+			if err != nil {
+				return nil, err
+			}
+			return r.Data, nil
+		})
+		if err == nil && len(buf) > 0 {
+			frames = append(frames, base64.StdEncoding.EncodeToString(buf))
+		}
+	}
+	// lab-INP: several trusted clicks so Event Timing reports the
+	// WORST interaction — web-vitals attributes it.
+	click(tab, 0.25, 0.30)
+	click(tab, 0.50, 0.55)
+	click(tab, 0.75, 0.70)
+	if _, err := chromedp.Run(tab, chromedp.Evaluate[any](wvJS)); err != nil {
+		return nil, nil, fmt.Errorf("inject web-vitals: %w", err)
+	}
+	res, err := chromedp.Run(tab,
+		chromedp.Evaluate[Attribution](wvCollect, chromedp.EvalAwaitPromise))
+	if err != nil {
+		return nil, frames, err
+	}
+	return &res, frames, nil
+}
+
+// click dispatches a trusted left-click at viewport-relative x,y.
+func click(tab context.Context, fx, fy float64) {
 	chromedp.Run(tab, chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
+		lay, err := cdp.Call(ctx, t, page.GetLayoutMetrics, cdp.Empty{})
+		if err != nil {
+			return err
+		}
+		x := lay.CSSVisualViewport.PageX + lay.CSSVisualViewport.ClientWidth*fx
+		y := lay.CSSVisualViewport.PageY + lay.CSSVisualViewport.ClientHeight*fy
 		for _, ev := range []input.DispatchMouseEventParams{
-			{Type: input.DispatchMouseEventTypeMousePressed, X: 100, Y: 100, Button: input.MouseButtonLeft, ClickCount: 1},
-			{Type: input.DispatchMouseEventTypeMouseReleased, X: 100, Y: 100, Button: input.MouseButtonLeft, ClickCount: 1},
+			{Type: input.DispatchMouseEventTypeMousePressed, X: x, Y: y, Button: input.MouseButtonLeft, ClickCount: 1},
+			{Type: input.DispatchMouseEventTypeMouseReleased, X: x, Y: y, Button: input.MouseButtonLeft, ClickCount: 1},
 		} {
 			if _, err := cdp.Call(ctx, t, input.DispatchMouseEvent, ev); err != nil {
 				return err
@@ -98,15 +137,6 @@ func CollectAttribution(ctx context.Context, url string) (*Attribution, error) {
 		}
 		return nil
 	}))
-	if _, err := chromedp.Run(tab, chromedp.Evaluate[any](wvJS)); err != nil {
-		return nil, fmt.Errorf("inject web-vitals: %w", err)
-	}
-	res, err := chromedp.Run(tab,
-		chromedp.Evaluate[Attribution](wvCollect, chromedp.EvalAwaitPromise))
-	if err != nil {
-		return nil, err
-	}
-	return &res, nil
 }
 
 // LHReport is the slice of a Lighthouse result we keep.

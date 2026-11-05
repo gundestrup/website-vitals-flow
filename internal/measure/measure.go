@@ -107,6 +107,7 @@ type Result struct {
 	Lighthouse     *deep.LHReport    `json:"lighthouse,omitempty"`
 	PSI            *psi.Result       `json:"psi,omitempty"`
 	Findings       []Finding         `json:"findings,omitempty"`
+	Filmstrip      []string          `json:"filmstrip,omitempty"`
 	Samples        []Sample          `json:"samples"`
 }
 
