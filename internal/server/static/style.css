@@ -103,3 +103,5 @@ body { min-height: 100vh; background: var(--wvf-paper); color: var(--wvf-ink); }
 .icon-check { -webkit-mask-image:url(/icons/check.svg); mask-image:url(/icons/check.svg); }
 .icon-cross { -webkit-mask-image:url(/icons/cross.svg); mask-image:url(/icons/cross.svg); }
 .wvf-icon.ok { color:#2e7d32 } .wvf-icon.no { color:#c62828 }
+
+.comp-icon { width:16px; height:16px; vertical-align:-2px; margin-right:.3em; }

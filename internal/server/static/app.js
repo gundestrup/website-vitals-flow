@@ -38,8 +38,9 @@ document.addEventListener('alpine:init', () => {
       out.push({id:'',band:'na',text:r.page_bytes?Math.round(r.page_bytes/1024)+'KB':'-',label:'weight',age:stale});
       out.push({id:'',band:'na',text:r.dom_nodes??'-',label:'DOM nodes',age:stale});
       // protocol widget: 3-line status (h3 advertised / h2 negotiated / h1 baseline)
+      const d=this.det||{};
       const proto=r.http_protocol||'';
-      const d0=this.det||{};
+      const d0=d;
       const h3ok=proto.startsWith('h3')||!!(d0.http3&&d0.http3.advertised);
       const hcProto=(d0.http_checks&&d0.http_checks.proto)||'';
       const h2ok=h3ok||proto.startsWith('h2')||hcProto.indexOf('2')>-1;
@@ -47,15 +48,21 @@ document.addEventListener('alpine:init', () => {
       const nSup=[h3ok,h2ok,h1ok].filter(Boolean).length;
       out.push({id:'proto',band:nSup>=3?'good':nSup===2?'ok':nSup===1?'poor':'na',
         text:'',label:'protocol',age:stale,
-        lines:[['HTTP/3',h3ok],['HTTP/2',h2ok],['HTTP/1.1',h1ok]]});
+        lines:[{ok:h3ok,label:'HTTP/3',title:'HTTP/3 (QUIC)'},
+          {ok:h2ok,label:'HTTP/2',title:'HTTP/2'},
+          {ok:h1ok,label:'HTTP/1.1',title:'HTTP/1.1 (baseline)'}]});
       // detail_json fields (encoding/tls/dom/cache live per-response)
-      const d=this.det||{};
       const smp=(d.samples&&d.samples.length)?d.samples[d.samples.length-1]:{};
       const resp=smp.responses||[];
       const doc=resp.find(x=>x.url===d.url)||resp[0]||{};
       const enc=doc.encoding||doc.content_encoding||'';
-      out.push({id:'comp',band:(enc==='br'||enc==='zstd')?'good':enc==='gzip'?'ok':enc?'poor':'na',
-        text:enc||'-',label:'encoding',age:stale});
+      const encs=(d.http_checks&&d.http_checks.encodings)||{};
+      const encOk=k=>!!(encs[k]&&encs[k].ok);
+      out.push({id:'comp',band:encOk('br')?'good':encOk('gzip')?'ok':'na',
+        text:enc||'-',label:'encoding',age:stale,
+        lines:[{img:'/icons/brotli-compression-icon.svg',ok:encOk('br'),label:'br',title:'Brotli'},
+          {img:'/icons/gzip-file-format-variant-svgrepo-com.svg',ok:encOk('gzip'),label:'gzip',title:'gzip'},
+          {img:'/icons/zstd.svg',ok:encOk('zstd'),label:'zstd',title:'Zstandard'}]});
       const tls=(d.http_checks&&d.http_checks.tls_version)||'';
       out.push({id:'tls',band:tls.includes('1.3')?'good':tls?'ok':'na',
         text:tls||'-',label:'TLS',age:stale});
