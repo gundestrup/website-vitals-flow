@@ -31,9 +31,9 @@
   <p class=eyebrow x-text="sel"></p>
   <template x-if="last[sel]"><div class="metric-grid">
     <template x-for="m in metricCards()"><div class="metric-cell">
-      <img class=badge-img x-bind:src="'/badges/'+m.id+'-'+m.band+'.svg'" x-show="m.band!=='na'">
+      <img class=badge-img x-show="m.id" x-bind:src="'/badges/'+m.id+'-'+m.band+'.svg'">
       <div class="metric-val mono" x-text="m.text"></div>
-      <div class="metric-lbl" x-text="m.label"></div>
+      <div class="metric-lbl"><span x-text="m.label"></span><span class="metric-age" x-show="m.age" x-text="m.age+' ago'"></span></div>
     </div></template>
   </div></template>
   <h2 class="title is-5 section-heading">Trend — timings</h2>
