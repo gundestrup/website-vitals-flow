@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"github.com/chromedp/cdproto/cdp"
 
+	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
@@ -32,6 +33,12 @@ func main() {
 			wait = time.Duration(v) * time.Millisecond
 		}
 	}
+	height := int64(0)
+	if len(os.Args) > 5 {
+		if v, err := strconv.Atoi(os.Args[5]); err == nil {
+			height = int64(v)
+		}
+	}
 	path, _, err := chrome.Find(os.Getenv("WVF_BROWSER_PATH"))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -47,6 +54,15 @@ func main() {
 	var shot []byte
 	err = chromedp.Do(tabCtx,
 		chromedp.Navigate(os.Args[1]),
+		chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
+			if height == 0 {
+				return nil
+			}
+			_, err := cdp.Call(ctx, t, emulation.SetDeviceMetricsOverride,
+				emulation.SetDeviceMetricsOverrideParams{
+					Width: 1366, Height: height, DeviceScaleFactor: 1})
+			return err
+		}),
 		chromedp.Sleep(wait),
 		chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
 			if len(os.Args) < 5 {
