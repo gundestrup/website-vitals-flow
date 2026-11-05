@@ -39,6 +39,9 @@ func New(st *store.Store, cfg config.Config, r *jobs.Runner) http.Handler {
 	mux.HandleFunc("GET /api/jobs", s.jobs)
 	mux.HandleFunc("GET /api/jobs/{id}", s.job)
 	mux.HandleFunc("GET /badge.svg", s.badge)
+	// SPA route: /site/<key> serves the same index (':' is legal in
+	// a path segment, so /site/localhost:8473 works directly)
+	mux.HandleFunc("GET /site/{key}", s.index)
 	mux.HandleFunc("POST /api/scan", s.scan)
 	mux.HandleFunc("POST /api/scan-now", s.scanNow)
 	mux.HandleFunc("POST /api/sites", s.siteAdd)
@@ -48,6 +51,16 @@ func New(st *store.Store, cfg config.Config, r *jobs.Runner) http.Handler {
 	mux.HandleFunc("GET /report/{id}", s.report)
 	mux.Handle("GET /", s.static())
 	return headers(mux)
+}
+
+func (s *Server) index(w http.ResponseWriter, r *http.Request) {
+	b, err := staticFS.ReadFile("static/index.html")
+	if err != nil {
+		http.Error(w, "index missing", 500)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(b)
 }
 
 func (s *Server) static() http.Handler {

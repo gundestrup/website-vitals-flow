@@ -107,6 +107,12 @@ func TestScanNowPruneBadge(t *testing.T) {
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "svg") {
 		t.Fatalf("badge: %d", rec.Code)
 	}
+	req = httptest.NewRequest("GET", "/site/a.test", nil)
+	rec = httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "Monitored sites") {
+		t.Fatalf("site route: %d", rec.Code)
+	}
 	req = httptest.NewRequest("GET", "/report/1", nil)
 	rec = httptest.NewRecorder()
 	s.ServeHTTP(rec, req)
