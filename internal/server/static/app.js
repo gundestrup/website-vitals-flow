@@ -8,9 +8,15 @@ document.addEventListener('alpine:init', () => {
       if(v==null||!b) return 'band-na';
       return v>b[1]?'band-poor':v>b[0]?'band-ok':'band-good';
     },
-    pill(id,v){
+    bandName(id,v){
+      return this.band(id,v).replace('band-','');
+    },
+    mcell(id,v){
+      // badge svg + value — shields-style, vendored offline
+      const b=this.bandName(id,v);
       const d=id==='cls'?(v==null?'-':v.toFixed(3)):(v==null?'-':Math.round(v)+'ms');
-      return `<span class="pill ${this.band(id,v)}">${d}</span>`;
+      if(b==='na'||v==null) return `<span class=mono>${d}</span>`;
+      return `<img class="badge-img" src="/badges/${id}-${b}.svg" alt="${b}"><span class="badge-val mono">${d}</span>`;
     },
     async j(u,o){ const r=await fetch(u,o); return r.json() },
     async load(){
