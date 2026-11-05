@@ -31,10 +31,15 @@ document.addEventListener('alpine:init', () => {
       const out=[];
       const ms=(id,v,label)=>{out.push({id,band:this.bandName(id,v),
         text:this.fmtv(id,v),label,age:stale})};
+      const MT={ttfb:'time to first byte — server response speed',
+        fcp:'first contentful paint — first visible content',
+        lcp:'largest contentful paint — main content ready',
+        cls:'cumulative layout shift — visual stability',
+        tbt:'total blocking time — main-thread busy'};
       ms('ttfb',r.ttfb_ms,'TTFB'); ms('fcp',r.fcp_ms,'FCP');
       ms('lcp',r.lcp_ms,'LCP');   ms('cls',r.cls,'CLS');
       ms('tbt',r.tbt_ms,'TBT');
-      out.push({id:'',band:'na',text:'',label:'page size',age:stale,
+      out.push({id:'',band:'na',text:'',label:'page size',title:'requests / weight / DOM per load',age:stale,
         lines:[{label:(r.request_count??'-')+' requests',title:'network requests per load'},
           {img:'/icons/weight-svgrepo-com.svg',label:r.page_bytes?Math.round(r.page_bytes/1024)+'KB':'-',
            title:'total transferred page weight'},
@@ -62,18 +67,18 @@ document.addEventListener('alpine:init', () => {
       const encs=(d.http_checks&&d.http_checks.encodings)||{};
       const encOk=k=>!!(encs[k]&&encs[k].ok);
       out.push({id:'comp',band:encOk('br')?'good':encOk('gzip')?'ok':'na',
-        text:'',label:'compression',age:stale,
+        text:'',label:'compression',title:'compression encodings offered by the server',age:stale,
         lines:[{img:'/icons/brotli-compression-icon.svg',ok:encOk('br'),label:'br',title:'Brotli'},
           {img:'/icons/gzip-file-format-variant-svgrepo-com.svg',ok:encOk('gzip'),label:'gzip',title:'gzip'},
           {img:'/icons/zstd.svg',ok:encOk('zstd'),label:'zstd',title:'Zstandard'}]});
       const tls=(d.http_checks&&d.http_checks.tls_version)||'';
       out.push({id:'tls',band:tls.includes('1.3')?'good':tls?'ok':'na',
-        text:tls||'-',label:'TLS',age:stale});
+        text:tls||'-',label:'TLS',title:'TLS version negotiated',age:stale});
       const cv=(d.http_checks&&d.http_checks.cache)||[];
       const tot=cv.length, cacheN=cv.filter(x=>x.cacheable).length;
       const pct=tot?Math.round(cacheN/tot*100):0;
       out.push({id:'cache',band:tot?(pct>=80?'good':pct>=50?'ok':'poor'):'na',
-        text:tot?pct+'%':'-',label:'cacheable',age:stale});
+        text:tot?pct+'%':'-',label:'cacheable',title:'share of responses marked cacheable',age:stale});
       return out;
     },
     async j(u,o){ const r=await fetch(u,o); return r.json() },
@@ -160,16 +165,20 @@ document.addEventListener('alpine:init', () => {
     signalList(){
       const d=this.det||{}; const sig=(d.http_checks&&d.http_checks.signals)||{};
       const out=[];
+      const T={'cache-control':'Cache-Control header present','expires':'Expires header present',
+        'last-modified':'Last-Modified validator','etag':'ETag validator','vary':'Vary header',
+        'age':'CDN/proxy age (cached)','cf-cache-status':'Cloudflare cache status',
+        'x-cache':'proxy cache status','x-cache-hits':'cache hit counter'};
       for(const k of ['cache-control','expires','last-modified','etag','vary',
                       'age','cf-cache-status','x-cache','x-cache-hits'])
-        out.push({l:k,ok:!!sig[k]});
+        out.push({l:k,ok:!!sig[k],t:T[k]||k});
       return out;
     },
     encList(){
       const d=this.det||{}; const enc=(d.http_checks&&d.http_checks.encodings)||{};
       const out=[];
       for(const k of ['br','gzip','zstd'])
-        out.push({l:k,ok:!!(enc[k]&&enc[k].ok)});
+        out.push({l:k,ok:!!(enc[k]&&enc[k].ok),t:k+' compression'});
       return out;
     },
     siteByKey(k){ return this.sites.find(x=>x.key===k)||{key:k} },
