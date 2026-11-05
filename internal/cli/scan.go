@@ -72,6 +72,13 @@ func scanCmd() *cobra.Command {
 			if res.BrowserVersion == "" {
 				res.BrowserVersion = ver
 			}
+			var engineErrs []measure.Finding
+			engErr := func(id, title string, err error) {
+				engineErrs = append(engineErrs, measure.Finding{ID: id,
+					Severity: measure.SevInfo, Category: "engine",
+					Title: title, Detail: err.Error()})
+				fmt.Fprintf(os.Stderr, "warn: %s: %v\n", title, err)
+			}
 			if findings.Want(only, "http") {
 				hc, herr := httpcheck.Probe(ctx, res.URL)
 				if herr != nil {
@@ -88,13 +95,6 @@ func scanCmd() *cobra.Command {
 					res.HTTP = hc
 					res.HTTP3 = http3.Probe(ctx, res.URL, hc.AltSvc)
 				}
-			}
-			var engineErrs []measure.Finding
-			engErr := func(id, title string, err error) {
-				engineErrs = append(engineErrs, measure.Finding{ID: id,
-					Severity: measure.SevInfo, Category: "engine",
-					Title: title, Detail: err.Error()})
-				fmt.Fprintf(os.Stderr, "warn: %s: %v\n", title, err)
 			}
 			if deepMode && findings.Want(only, "deep") {
 				if a, frames, ff, aerr := deep.CollectAttribution(browser, res.URL); aerr == nil {
