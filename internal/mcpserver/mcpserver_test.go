@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -119,4 +120,38 @@ func TestScanBadURL(t *testing.T) {
 	if res["isError"] != true {
 		t.Fatal("missing url should be isError")
 	}
+}
+
+func TestRunToolAndHistoryLimit(t *testing.T) {
+	st := seedStore(t)
+	ctx := context.Background()
+	site, _ := st.GetOrCreateSite(ctx, "b.test", "http://b.test", 10, 7)
+	var id int64
+	for i := 0; i < 3; i++ {
+		id, _ = st.InsertRun(ctx, &store.Run{SiteID: site.ID, Engine: "cdp",
+			Status: "ok", StartedAt: time.Now().Add(-time.Duration(3-i) * time.Hour),
+			FinishedAt: time.Now(), TTFBms: float64(i)})
+	}
+	resps := serve(t, st, initMsg,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"run","arguments":{"id":`+itoa(id)+`}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"history","arguments":{"site":"b.test","limit":1}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"nope","arguments":{}}}`)
+	var run map[string]any
+	json.Unmarshal(contentJSON(t, resps[1]), &run)
+	if run["id"] != float64(id) || run["ttfb_ms"] != 2.0 {
+		t.Fatalf("run tool wrong: %v", run)
+	}
+	var runs []map[string]any
+	json.Unmarshal(contentJSON(t, resps[2]), &runs)
+	if len(runs) != 1 {
+		t.Fatalf("limit=1 should return 1 run, got %d", len(runs))
+	}
+	res := resps[3]["result"].(map[string]any)
+	if res["isError"] != true {
+		t.Fatal("unknown tool should be isError")
+	}
+}
+
+func itoa(i int64) string {
+	return fmt.Sprintf("%d", i)
 }

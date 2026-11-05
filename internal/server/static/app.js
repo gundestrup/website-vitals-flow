@@ -2,6 +2,16 @@ document.addEventListener('alpine:init', () => {
   Alpine.data('dash', () => ({
     sites: [], last: {}, jobs: [], runs: [], sel: '', busy: false, chart: null, findings: [],
     fmt(v){ return v==null?'-':Math.round(v) },
+    band(id,v){
+      const b={ttfb:[800,1800],fcp:[1800,3000],lcp:[2500,4000],
+               cls:[0.1,0.25],tbt:[200,600],inp:[200,500]}[id];
+      if(v==null||!b) return 'band-na';
+      return v>b[1]?'band-poor':v>b[0]?'band-ok':'band-good';
+    },
+    pill(id,v){
+      const d=id==='cls'?(v==null?'-':v.toFixed(3)):(v==null?'-':Math.round(v)+'ms');
+      return `<span class="pill ${this.band(id,v)}">${d}</span>`;
+    },
     async j(u,o){ const r=await fetch(u,o); return r.json() },
     async load(){
       this.sites = await this.j('/api/sites') || [];

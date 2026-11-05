@@ -14,9 +14,9 @@
       <span class="tag is-light" x-show="s.deep">deep</span>
       <span class="tag is-light" x-show="s.only" x-text="s.only"></span></td>
   <td class=mono x-text="s.schedule||'manual'"></td>
-  <td class=mono x-text="fmt(last[s.key]&&last[s.key].ttfb_ms)+' ms'"></td>
-  <td class=mono x-text="fmt(last[s.key]&&last[s.key].lcp_ms)+' ms'"></td>
-  <td class=mono x-text="last[s.key]?last[s.key].cls.toFixed(3):'-'"></td>
+  <td x-html="last[s.key]?pill('ttfb',last[s.key].ttfb_ms):''"></td>
+  <td x-html="last[s.key]?pill('lcp',last[s.key].lcp_ms):''"></td>
+  <td x-html="last[s.key]?pill('cls',last[s.key].cls):''"></td>
   <td><button class="button is-small is-primary" @click="scan(s.key)" x-bind:disabled="busy">scan now</button></td>
 </tr></template></tbody></table></div>
 <div x-show="sel" style="margin-top:2em">
@@ -36,7 +36,7 @@
     <td class=mono x-text="r.id"></td><td class=mono x-text="r.started_at.slice(0,16).replace('T',' ')"></td>
     <td class=mono x-text="r.engine"></td><td class=mono x-text="fmt(r.ttfb_ms)"></td>
     <td class=mono x-text="fmt(r.lcp_ms)"></td><td class=mono x-text="r.cls.toFixed(3)"></td>
-    <td class=mono x-text="fmt(r.tbt_ms)"></td><td class=mono x-text="r.http_protocol"></td>
+    <td class=mono x-text="fmt(r.tbt_ms)"></td><td><span class="tag is-light mono" x-text="r.http_protocol"></span></td>
   </tr></template></tbody></table></div></div>
 </div></div></section>
 <script src=/vendor/chart.umd.js></script><script src=/vendor/cdn.min.js defer></script>

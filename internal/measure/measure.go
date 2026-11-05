@@ -3,6 +3,7 @@ package measure
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"time"
@@ -83,18 +84,19 @@ func nonneg(f float64) float64 {
 
 // Sample is the vitals data from a single page load.
 type Sample struct {
-	TTFBms    float64     `json:"ttfb_ms"`
-	FCPms     *float64    `json:"fcp_ms,omitempty"`
-	LCPms     *float64    `json:"lcp_ms,omitempty"`
-	LCPElem   string      `json:"lcp_element,omitempty"`
-	CLS       float64     `json:"cls"`
-	TBTms     float64     `json:"tbt_ms"`
-	DCLms     float64     `json:"dom_content_loaded_ms"`
-	LoadMs    float64     `json:"load_ms"`
-	JSHeap    int64       `json:"js_heap_bytes"`
-	DOMNodes  int64       `json:"dom_nodes"`
-	Responses []Response  `json:"responses"`
-	Images    []ImageInfo `json:"images,omitempty"`
+	TTFBms     float64     `json:"ttfb_ms"`
+	FCPms      *float64    `json:"fcp_ms,omitempty"`
+	LCPms      *float64    `json:"lcp_ms,omitempty"`
+	LCPElem    string      `json:"lcp_element,omitempty"`
+	CLS        float64     `json:"cls"`
+	TBTms      float64     `json:"tbt_ms"`
+	DCLms      float64     `json:"dom_content_loaded_ms"`
+	LoadMs     float64     `json:"load_ms"`
+	JSHeap     int64       `json:"js_heap_bytes"`
+	DOMNodes   int64       `json:"dom_nodes"`
+	Screenshot string      `json:"screenshot,omitempty"` // jpeg b64
+	Responses  []Response  `json:"responses"`
+	Images     []ImageInfo `json:"images,omitempty"`
 }
 
 // Result is a complete measurement: samples + the Chrome version used.
@@ -285,6 +287,15 @@ func loadOnce(ctx context.Context, url string, settle time.Duration) (*Sample, e
 		return nil, fmt.Errorf("performance metrics: %w", err)
 	}
 	images, _ := chromedp.Run(tabCtx, chromedp.Evaluate[[]ImageInfo](imagesScript))
+	shot, _ := chromedp.Run(tabCtx, func(ctx context.Context, t *chromedp.Target) ([]byte, error) {
+		q := int64(40)
+		r, err := cdp.Call(ctx, t, page.CaptureScreenshot,
+			page.CaptureScreenshotParams{Format: "jpeg", Quality: &q})
+		if err != nil {
+			return nil, err
+		}
+		return r.Data, nil
+	})
 	byURL := map[string]*Response{}
 	for i := range responses {
 		byURL[responses[i].URL] = &responses[i]
@@ -304,6 +315,9 @@ func loadOnce(ctx context.Context, url string, settle time.Duration) (*Sample, e
 		LCPElem:   pm.LCPElem,
 		Responses: responses,
 		Images:    images,
+	}
+	if len(shot) > 0 {
+		s.Screenshot = base64.StdEncoding.EncodeToString(shot)
 	}
 	if pm.TTFB != nil {
 		s.TTFBms = *pm.TTFB
