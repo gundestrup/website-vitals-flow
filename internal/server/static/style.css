@@ -90,3 +90,5 @@ body { min-height: 100vh; background: var(--wvf-paper); color: var(--wvf-ink); }
   border-radius:6px; background:var(--wvf-bg-soft,#fff); }
 .signal { font-size:.72rem; font-family:var(--wvf-mono); color:var(--wvf-muted); }
 .signal.ok { color:#2e7d32; }
+
+.proto-lines { font-size:.68rem; line-height:1.5; }
