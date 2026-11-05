@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/deep"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/measure"
 )
 
@@ -278,4 +279,29 @@ func minI(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// FromLighthouse converts Lighthouse audit failures into findings,
+// preserving their web.dev doc links. Severity: score<0.5 poor,
+// else warn. d carries the display value + estimated savings.
+func FromLighthouse(lh *deep.LHReport) []measure.Finding {
+	if lh == nil {
+		return nil
+	}
+	var out []measure.Finding
+	for _, f := range lh.Findings {
+		sev := measure.SevWarn
+		if f.Score < 0.5 {
+			sev = measure.SevPoor
+		}
+		d := f.Display
+		if f.Savings > 0 {
+			d = strings.TrimSpace(d + fmt.Sprintf(" (~%.0fms)", f.Savings))
+		}
+		out = append(out, measure.Finding{
+			ID: "lh_" + f.ID, Severity: sev, Category: "lighthouse",
+			Title: f.Title, Detail: d, Link: f.Link,
+		})
+	}
+	return out
 }
