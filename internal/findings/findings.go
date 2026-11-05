@@ -293,7 +293,9 @@ func ParseOnly(csv string) map[string]bool {
 
 // Want reports whether a pipeline stage runs under the only-set.
 func Want(only map[string]bool, stage string) bool {
-	if only == nil {
+	// 'deep' alone means "default scan + deep stage", not narrowing —
+	// explicit id lists still narrow as expected.
+	if only == nil || (len(only) == 1 && only["deep"]) {
 		return true
 	}
 	return only[stage]
