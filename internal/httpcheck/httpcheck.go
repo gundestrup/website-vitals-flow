@@ -42,6 +42,7 @@ type Result struct {
 	AltSvc     string                    `json:"alt_svc,omitempty"`
 	Encodings  map[string]*EncodingProbe `json:"encodings"`
 	Cache      []CacheVerdict            `json:"cache,omitempty"`
+	Basics     map[string]int            `json:"basics,omitempty"` // path -> status
 }
 
 // Asset is one response's cache-relevant headers (from the CDP layer).
@@ -94,7 +95,33 @@ func Probe(ctx context.Context, rawurl string) (*Result, error) {
 	for _, enc := range offers {
 		res.Encodings[enc] = probeEncoding(ctx, client, res.FinalURL, enc)
 	}
+	res.Basics = probeBasics(ctx, client, res.FinalURL)
 	return res, nil
+}
+
+var basicPaths = []string{
+	"/robots.txt", "/sitemap.xml", "/favicon.ico", "/site.webmanifest",
+}
+
+// probeBasics HEAD-checks conventional site files — cheap presence
+// signals for the "basics" best-practice group.
+func probeBasics(ctx context.Context, client *http.Client, finalURL string) map[string]int {
+	out := map[string]int{}
+	for _, p := range basicPaths {
+		req, err := http.NewRequestWithContext(ctx, http.MethodHead,
+			strings.TrimSuffix(finalURL, "/")+p, nil)
+		if err != nil {
+			continue
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			out[p] = 0
+			continue
+		}
+		resp.Body.Close()
+		out[p] = resp.StatusCode
+	}
+	return out
 }
 
 func probeEncoding(ctx context.Context, client *http.Client, url, enc string) *EncodingProbe {
