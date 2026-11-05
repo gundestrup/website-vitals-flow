@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	"github.com/chromedp/cdproto/cdp"
@@ -170,6 +171,7 @@ type LHFinding struct {
 	Title    string  `json:"title"`
 	Score    float64 `json:"score"`
 	Display  string  `json:"display,omitempty"`
+	Link     string  `json:"link,omitempty"`
 	Savings  float64 `json:"savings_ms,omitempty"`
 	SavingsB float64 `json:"savings_bytes,omitempty"`
 }
@@ -180,6 +182,7 @@ type lhJSON struct {
 	} `json:"categories"`
 	Audits map[string]struct {
 		Title   string   `json:"title"`
+		Desc    string   `json:"description"`
 		Score   *float64 `json:"score"`
 		Display string   `json:"displayValue"`
 		Details *struct {
@@ -218,7 +221,8 @@ func Lighthouse(ctx context.Context, bin, url string) (*LHReport, error) {
 		if a.Score == nil || *a.Score >= 0.9 {
 			continue
 		}
-		f := LHFinding{ID: id, Title: a.Title, Score: *a.Score, Display: a.Display}
+		f := LHFinding{ID: id, Title: a.Title, Score: *a.Score, Display: a.Display,
+			Link: mdLink(a.Desc)}
 		if a.Details != nil {
 			f.Savings = a.Details.Summary.WastedMs
 			f.SavingsB = a.Details.Summary.WastedBytes
@@ -226,6 +230,17 @@ func Lighthouse(ctx context.Context, bin, url string) (*LHReport, error) {
 		r.Findings = append(r.Findings, f)
 	}
 	return r, nil
+}
+
+// mdLink pulls the first [text](url) link from Lighthouse audit
+// descriptions — they carry the web.dev "Learn more" targets.
+var mdLinkRe = regexp.MustCompile(`\]\((https?://[^)]+)\)`)
+
+func mdLink(desc string) string {
+	if m := mdLinkRe.FindStringSubmatch(desc); len(m) > 1 {
+		return m[1]
+	}
+	return ""
 }
 
 // FindAvifenc locates an avifenc binary (optional filmstrip upgrade).
