@@ -136,10 +136,12 @@ func TestRunToolAndHistoryLimit(t *testing.T) {
 		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"run","arguments":{"id":`+itoa(id)+`}}}`,
 		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"history","arguments":{"site":"b.test","limit":1}}}`,
 		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"nope","arguments":{}}}`)
-	var run map[string]any
-	json.Unmarshal(contentJSON(t, resps[1]), &run)
-	if run["id"] != float64(id) || run["ttfb_ms"] != 2.0 {
-		t.Fatalf("run tool wrong: %v", run)
+	var wrapped struct {
+		Run map[string]any `json:"run"`
+	}
+	json.Unmarshal(contentJSON(t, resps[1]), &wrapped)
+	if wrapped.Run["id"] != float64(id) || wrapped.Run["ttfb_ms"] != 2.0 {
+		t.Fatalf("run tool wrong: %v", wrapped.Run)
 	}
 	var runs []map[string]any
 	json.Unmarshal(contentJSON(t, resps[2]), &runs)
@@ -154,4 +156,25 @@ func TestRunToolAndHistoryLimit(t *testing.T) {
 
 func itoa(i int64) string {
 	return fmt.Sprintf("%d", i)
+}
+
+func TestRunToolSurfacesFindings(t *testing.T) {
+	st := seedStore(t)
+	ctx := context.Background()
+	site, _ := st.GetOrCreateSite(ctx, "f.test", "http://f.test", 10, 7)
+	id, _ := st.InsertRun(ctx, &store.Run{SiteID: site.ID, Engine: "cdp",
+		Status: "ok", StartedAt: time.Now(), FinishedAt: time.Now(),
+		DetailJSON: `{"findings":[{"id":"cls","severity":"poor","title":"layout shift 0.307"}]}`})
+	resps := serve(t, st, initMsg,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"run","arguments":{"id":`+itoa(id)+`}}}`)
+	var out struct {
+		Run      map[string]any   `json:"run"`
+		Findings []map[string]any `json:"findings"`
+	}
+	if err := json.Unmarshal(contentJSON(t, resps[1]), &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 || out.Findings[0]["id"] != "cls" {
+		t.Fatalf("findings not surfaced: %+v", out)
+	}
 }
