@@ -12,6 +12,23 @@ document.addEventListener('alpine:init', () => {
       return this.band(id,v).replace('band-','');
     },
     fmtv(id,v){ return id==='cls'?(v==null?'-':v.toFixed(3)):(v==null?'-':Math.round(v)+'ms') },
+    chart2: null,
+    metricCards(){
+      const r=this.last[this.sel]; if(!r) return [];
+      const out=[];
+      const ms=(id,v,label)=>{out.push({id,band:this.bandName(id,v),
+        text:this.fmtv(id,v),label})};
+      ms('ttfb',r.ttfb_ms,'TTFB'); ms('fcp',r.fcp_ms,'FCP');
+      ms('lcp',r.lcp_ms,'LCP');   ms('cls',r.cls,'CLS');
+      ms('tbt',r.tbt_ms,'TBT');
+      out.push({id:'',band:'na',text:r.request_count??'-',label:'requests'});
+      out.push({id:'',band:'na',text:r.page_bytes?Math.round(r.page_bytes/1024)+'KB':'-',label:'weight'});
+      out.push({id:'',band:'na',text:r.dom_nodes??'-',label:'DOM nodes'});
+      out.push({id:'',band:'na',text:r.http_protocol||'-',label:'protocol'});
+      out.push({id:'',band:'na',text:r.content_encoding||'-',label:'encoding'});
+      out.push({id:'',band:'na',text:r.tls_version||'-',label:'TLS'});
+      return out;
+    },
     async j(u,o){ const r=await fetch(u,o); return r.json() },
     async load(){
       this.sites = await this.j('/api/sites') || [];
@@ -25,7 +42,7 @@ document.addEventListener('alpine:init', () => {
       }
     },
     async open(key){
-      this.sel=key;
+      this.sel=key; location.hash=key;
       this.runs=(await this.j('/api/sites/'+key+'/runs'))||[];
       if(this.runs.length){
         const det=await this.j('/api/runs/'+this.runs[0].id);
@@ -56,6 +73,17 @@ document.addEventListener('alpine:init', () => {
       this.chart=new Chart(document.getElementById('chart'),{type:'line',
         data:{labels,datasets:ds},
         options:{plugins:{legend:{display:true}},scales:{y:{title:{text:'ms',display:true}}}}});
+      // second chart: CLS + request count (separate scale from ms)
+      const c2=document.getElementById('chart2');
+      if(c2){
+        if(this.chart2) this.chart2.destroy();
+        this.chart2=new Chart(c2,{type:'line',
+          data:{labels,datasets:[
+            {label:'CLS',data:rs.map(r=>r.cls),tension:.3},
+            {label:'requests',data:rs.map(r=>r.request_count),tension:.3,yAxisID:'y1'}]},
+          options:{scales:{y:{title:{text:'CLS',display:true}},
+            y1:{position:'right',title:{text:'reqs',display:true},grid:{drawOnChartArea:false}}}}});
+      }
     }
   }));
 });

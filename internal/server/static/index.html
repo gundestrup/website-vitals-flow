@@ -4,6 +4,7 @@
 <p class=eyebrow>website-vitals-flow</p>
 <h1 class="title is-4 section-heading">Monitored sites</h1>
 <div x-data="dash" x-init="load()">
+<div x-show="!sel">
 <template x-if="jobs.length"><div class="box is-shadowless" style="border:1px solid var(--wvf-line);padding:.7em">
   <template x-for="j in jobs.slice(0,4)"><div class="job-row mono" x-text="j.state+': '+(j.detail||'')"></div></template>
 </div></template>
@@ -24,11 +25,21 @@
       <img class=badge-img x-bind:src="'/badges/cls-'+bandName('cls',last[s.key].cls)+'.svg'">
       <span class="badge-val mono" x-text="fmtv('cls',last[s.key].cls)"></span></span></template></td>
   <td><button class="button is-small is-primary" @click="scan(s.key)" x-bind:disabled="busy">scan now</button></td>
-</tr></template></tbody></table></div>
-<div x-show="sel" style="margin-top:2em">
+</tr></template></tbody></table></div></div>
+<div x-show="sel" style="margin-top:1em">
+  <a href="#" @click.prevent="sel='';location.hash=''" class="mono" style="font-size:.8rem">← all sites</a>
   <p class=eyebrow x-text="sel"></p>
-  <h2 class="title is-5 section-heading">Trend</h2>
+  <template x-if="last[sel]"><div class="metric-grid">
+    <template x-for="m in metricCards()"><div class="metric-cell">
+      <img class=badge-img x-bind:src="'/badges/'+m.id+'-'+m.band+'.svg'" x-show="m.band!=='na'">
+      <div class="metric-val mono" x-text="m.text"></div>
+      <div class="metric-lbl" x-text="m.label"></div>
+    </div></template>
+  </div></template>
+  <h2 class="title is-5 section-heading">Trend — timings</h2>
   <div class="box is-shadowless" style="border:1px solid var(--wvf-line)"><canvas id=chart></canvas></div>
+  <h2 class="title is-5 section-heading">Trend — layout shift</h2>
+  <div class="box is-shadowless" style="border:1px solid var(--wvf-line)"><canvas id=chart2></canvas></div>
   <h2 class="title is-5 section-heading" x-show="findings.length">Findings</h2>
   <template x-for="f in findings"><div class="job-row" style="padding:.4em 0">
     <span x-bind:class="'sev-'+f.severity" x-text="'['+f.severity+']'"></span>
