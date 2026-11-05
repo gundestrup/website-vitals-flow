@@ -38,13 +38,15 @@ document.addEventListener('alpine:init', () => {
       out.push({id:'',band:'na',text:r.page_bytes?Math.round(r.page_bytes/1024)+'KB':'-',label:'weight',age:stale});
       out.push({id:'',band:'na',text:r.dom_nodes??'-',label:'DOM nodes',age:stale});
       const proto=r.http_protocol||'';
-      out.push({id:'proto',band:proto.startsWith('h3')||proto.startsWith('h2')?'good':proto?'ok':'na',
-        text:proto||'-',label:'protocol',age:stale});
+      const h3ok=(this.det&&this.det.http3&&this.det.http3.advertised);
+      out.push({id:'proto',band:(h3ok||proto.startsWith('h3')||proto.startsWith('h2'))?'good':proto?'ok':'na',
+        text:(proto||'-')+(h3ok?' +h3':''),label:'protocol',age:stale});
       // detail_json fields (encoding/tls/dom/cache live per-response)
       const d=this.det||{};
       const smp=(d.samples&&d.samples.length)?d.samples[d.samples.length-1]:{};
       const resp=(smp.responses||d.responses||[]);
-      const enc=(resp[0]&&(resp[0].encoding||resp[0].content_encoding))||'';
+      const doc=resp.find(x=>x.url===d.url)||resp[0]||{};
+      const enc=doc.encoding||doc.content_encoding||'';
       out.push({id:'comp',band:(enc==='br'||enc==='zstd')?'good':enc==='gzip'?'ok':enc?'poor':'na',
         text:enc||'-',label:'encoding',age:stale});
       const tls=(d.http&&d.http.tls_version)||'';
