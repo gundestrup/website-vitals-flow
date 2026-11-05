@@ -130,17 +130,27 @@ func RunSiteScan(ctx context.Context, st *store.Store, cfg config.Config,
 			res.HTTP3 = http3.Probe(scanCtx, res.URL, hc.AltSvc)
 		}
 	}
+	var engineErrs []measure.Finding
+	engErr := func(id, title string, err error) {
+		engineErrs = append(engineErrs, measure.Finding{ID: id,
+			Severity: measure.SevInfo, Category: "engine",
+			Title: title, Detail: err.Error()})
+	}
 	if deepMode && findings.Want(only, "deep") {
 		progress("web-vitals attribution")
 		if a, frames, ff, aerr := deep.CollectAttribution(browser, res.URL); aerr == nil {
 			res.Attribution = a
 			res.Filmstrip = frames
 			res.FilmstripFormat = ff
+		} else {
+			engErr("attr_error", "attribution collect failed", aerr)
 		}
 		if bin, berr := deep.FindBin(); berr == nil {
 			progress("lighthouse")
 			if lh, lerr := deep.Lighthouse(scanCtx, bin, res.URL); lerr == nil {
 				res.Lighthouse = lh
+			} else {
+				engErr("lh_error", "lighthouse audit failed", lerr)
 			}
 		}
 	}

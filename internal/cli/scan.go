@@ -85,19 +85,26 @@ func scanCmd() *cobra.Command {
 					res.HTTP3 = http3.Probe(ctx, res.URL, hc.AltSvc)
 				}
 			}
+			var engineErrs []measure.Finding
+			engErr := func(id, title string, err error) {
+				engineErrs = append(engineErrs, measure.Finding{ID: id,
+					Severity: measure.SevInfo, Category: "engine",
+					Title: title, Detail: err.Error()})
+				fmt.Fprintf(os.Stderr, "warn: %s: %v\n", title, err)
+			}
 			if deepMode && findings.Want(only, "deep") {
 				if a, frames, ff, aerr := deep.CollectAttribution(browser, res.URL); aerr == nil {
 					res.Attribution = a
 					res.Filmstrip = frames
 					res.FilmstripFormat = ff
 				} else {
-					fmt.Fprintf(os.Stderr, "warn: attribution: %v\n", aerr)
+					engErr("attr_error", "attribution collect failed", aerr)
 				}
 				if bin, berr := deep.FindBin(); berr == nil {
 					if lh, lerr := deep.Lighthouse(ctx, bin, res.URL); lerr == nil {
 						res.Lighthouse = lh
 					} else {
-						fmt.Fprintf(os.Stderr, "warn: lighthouse: %v\n", lerr)
+						engErr("lh_error", "lighthouse audit failed", lerr)
 					}
 				} else {
 					fmt.Fprintln(os.Stderr, "warn: lighthouse not on PATH — skipping audits")
@@ -107,9 +114,7 @@ func scanCmd() *cobra.Command {
 			res.Findings = append(res.Findings, findings.FromLighthouse(res.Lighthouse)...)
 			res.Findings = append(res.Findings, findings.FromAttribution(res.Attribution)...)
 			res.Findings = append(res.Findings, findings.FromPSI(res.PSI)...)
-			res.Findings = findings.Dedup(res.Findings)
-			res.Findings = append(res.Findings, findings.FromAttribution(res.Attribution)...)
-			res.Findings = append(res.Findings, findings.FromPSI(res.PSI)...)
+			res.Findings = append(res.Findings, engineErrs...)
 			res.Findings = findings.Dedup(res.Findings)
 			if psiMode {
 				if r, perr := psi.Fetch(ctx, res.URL, cfg.PSIKey); perr == nil {
