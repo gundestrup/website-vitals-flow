@@ -8,6 +8,8 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/jobs"
@@ -39,6 +41,11 @@ func New(st *store.Store, cfg config.Config, r *jobs.Runner) http.Handler {
 	mux.HandleFunc("GET /badge.svg", s.badge)
 	mux.HandleFunc("POST /api/scan", s.scan)
 	mux.HandleFunc("POST /api/scan-now", s.scanNow)
+	mux.HandleFunc("POST /api/sites", s.siteAdd)
+	mux.HandleFunc("PATCH /api/sites/{key}", s.siteEdit)
+	mux.HandleFunc("DELETE /api/sites/{key}", s.siteDelete)
+	mux.HandleFunc("POST /api/prune", s.prune)
+	mux.HandleFunc("GET /report/{id}", s.report)
 	mux.Handle("GET /", s.static())
 	return headers(mux)
 }
@@ -90,7 +97,9 @@ func (s *Server) jobs(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) scanNow(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Key string `json:"key"`
+		Key  string `json:"key"`
+		Deep bool   `json:"deep"`
+		Only string `json:"only"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, nil, err)
@@ -101,7 +110,12 @@ func (s *Server) scanNow(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]string{"error": "unknown site"}, err)
 		return
 	}
-	id, err := s.runner.Enqueue(r.Context(), site.ID, "scan", site.Deep, "")
+	// request-level overrides fall back to the site's own settings
+	only := body.Only
+	if only == "" {
+		only = site.Only
+	}
+	id, err := s.runner.Enqueue(r.Context(), site.ID, "scan", body.Deep || site.Deep, only)
 	writeJSON(w, map[string]int64{"job": id}, err)
 }
 
@@ -323,4 +337,139 @@ func headers(next http.Handler) http.Handler {
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		next.ServeHTTP(w, r)
 	})
+}
+
+// siteAdd creates/updates a monitored site from the dashboard.
+func (s *Server) siteAdd(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		URL      string `json:"url"`
+		Label    string `json:"label"`
+		Schedule string `json:"schedule"`
+		Deep     bool   `json:"deep"`
+		Only     string `json:"only"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&b); err != nil || b.URL == "" {
+		writeJSON(w, map[string]string{"error": "need url"}, nil)
+		return
+	}
+	key, canon, err := sitekey.From(b.URL)
+	if err != nil {
+		writeJSON(w, map[string]string{"error": err.Error()}, nil)
+		return
+	}
+	site, err := s.st.UpsertSite(r.Context(), key, canon, b.Label, b.Schedule,
+		s.cfg.KeepLast, s.cfg.MaxAgeDays, b.Deep, b.Only)
+	writeJSON(w, site, err)
+}
+
+// siteEdit patches a monitored site's label/schedule/deep/only.
+func (s *Server) siteEdit(w http.ResponseWriter, r *http.Request) {
+	site, err := s.st.SiteByKey(r.Context(), r.PathValue("key"))
+	if err != nil {
+		writeJSON(w, map[string]string{"error": "unknown site"}, nil)
+		return
+	}
+	var b struct {
+		Label    *string `json:"label"`
+		Schedule *string `json:"schedule"`
+		Deep     *bool   `json:"deep"`
+		Only     *string `json:"only"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+		writeJSON(w, map[string]string{"error": "bad body"}, nil)
+		return
+	}
+	label, sched, deep, only := site.Label, site.Schedule, site.Deep, site.Only
+	if b.Label != nil {
+		label = *b.Label
+	}
+	if b.Schedule != nil {
+		sched = *b.Schedule
+	}
+	if b.Deep != nil {
+		deep = *b.Deep
+	}
+	if b.Only != nil {
+		only = *b.Only
+	}
+	updated, err := s.st.UpsertSite(r.Context(), site.Key, site.URL, label,
+		sched, site.KeepLast, site.MaxAgeDays, deep, only)
+	writeJSON(w, updated, err)
+}
+
+func (s *Server) siteDelete(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, map[string]string{"removed": r.PathValue("key")},
+		s.st.RemoveSite(r.Context(), r.PathValue("key")))
+}
+
+// prune applies retention now — optional {"key": site} for one site,
+// or {"older_days": 60} to force an age cutoff across sites.
+func (s *Server) prune(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Key string `json:"key"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&b)
+	var dropped int64
+	if b.Key != "" {
+		if site, err := s.st.SiteByKey(r.Context(), b.Key); err == nil {
+			n, _ := s.st.PruneSiteNow(r.Context(), site.ID)
+			dropped = n
+		}
+	} else {
+		sites, _ := s.st.ListSites(r.Context())
+		for _, si := range sites {
+			n, _ := s.st.PruneSiteNow(r.Context(), si.ID)
+			dropped += n
+		}
+	}
+	writeJSON(w, map[string]int64{"dropped": dropped}, nil)
+}
+
+// report renders one run's detail_json as a standalone HTML page.
+func (s *Server) report(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	run, err := s.st.RunByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "unknown run", 404)
+		return
+	}
+	var det map[string]any
+	_ = json.Unmarshal([]byte(run.DetailJSON), &det)
+	var b strings.Builder
+	b.WriteString("<!doctype html><meta charset=utf-8><title>wvf run report</title>")
+	b.WriteString("<style>body{font-family:system-ui;max-width:900px;margin:2em auto;padding:0 1em}")
+	b.WriteString("table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:.3em .6em;font-size:.85em}")
+	b.WriteString(".poor{color:#c62828}.warn{color:#b26a00}.info{color:#555}pre{background:#f4f1e8;padding:1em;overflow:auto;font-size:.75em}</style>")
+	fmt.Fprintf(&b, "<h1>Run %d</h1><p>%s · engine %s · %s</p>", id, run.BrowserVersion, run.Engine, run.StartedAt.Format("2006-01-02 15:04"))
+	b.WriteString("<table><tr><th>ttfb</th><th>fcp</th><th>lcp</th><th>cls</th><th>tbt</th><th>reqs</th></tr>")
+	f := func(p *float64) string {
+		if p == nil {
+			return "-"
+		}
+		return fmt.Sprintf("%.0f", *p)
+	}
+	fmt.Fprintf(&b, "<tr><td>%.0f</td><td>%s</td><td>%s</td><td>%.3f</td><td>%.0f</td><td>%d</td></tr></table>",
+		run.TTFBms, f(run.FCPms), f(run.LCPms), run.CLS, run.TBTms, run.RequestCount)
+	if fs, ok := det["findings"].([]any); ok && len(fs) > 0 {
+		b.WriteString("<h2>Findings</h2>")
+		for _, fi := range fs {
+			m := fi.(map[string]any)
+			fmt.Fprintf(&b, "<p class=%v>[%v] %v", m["severity"], m["severity"], m["title"])
+			if m["link"] != nil {
+				fmt.Fprintf(&b, ` — <a href="%v">guide</a>`, m["link"])
+			}
+			if m["detail"] != nil {
+				fmt.Fprintf(&b, "<br><small>%v</small>", m["detail"])
+			}
+			b.WriteString("</p>")
+		}
+	}
+	j, _ := json.MarshalIndent(det, "", "  ")
+	fmt.Fprintf(&b, "<h2>detail_json</h2><pre>%s</pre>", j)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(b.String()))
 }

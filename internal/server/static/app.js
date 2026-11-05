@@ -1,6 +1,8 @@
 document.addEventListener('alpine:init', () => {
   Alpine.data('dash', () => ({
     sites: [], last: {}, jobs: [], runs: [], sel: '', busy: false, chart: null, findings: [],
+    addUrl:'', addSched:'', scanType:'', onlySel:[],
+    onlyOpts:['ttfb','fcp','lcp','cls','tbt','inp','vitals','http','h3','images','js','css','deep','psi'],
     fmt(v){ return v==null?'-':Math.round(v) },
     band(id,v){
       const b={ttfb:[800,1800],fcp:[1800,3000],lcp:[2500,4000],
@@ -81,6 +83,52 @@ document.addEventListener('alpine:init', () => {
            }catch(e){ this.det=null; this.findings=[] }
       }
       this.draw();
+    },
+    // add/edit/delete monitored sites via the new API
+    async addSite(){
+      if(!this.addUrl) return;
+      const only=this.scanType==='custom'?this.onlySel.join(','):(this.scanType||'');
+      await this.j('/api/sites',{method:'POST',body:JSON.stringify({
+        url:this.addUrl,schedule:this.addSched,deep:this.scanType==='deep',only})});
+      this.addUrl=''; this.addSched=''; await this.load();
+    },
+    async editSite(s){
+      const schedule=prompt('schedule (30m, 6h, daily — empty = manual):', s.schedule||'');
+      if(schedule===null) return;
+      const only=prompt('only set (empty = all):', s.only||'');
+      if(only===null) return;
+      const deep=confirm('run deep scans for this site? (attribution + lighthouse)');
+      await this.j('/api/sites/'+s.key,{method:'PATCH',
+        body:JSON.stringify({schedule,only,deep})});
+      await this.load();
+    },
+    async delSite(s){
+      if(!confirm('remove '+s.key+' and its history?')) return;
+      await this.j('/api/sites/'+s.key,{method:'DELETE'});
+      if(this.sel===s.key){ this.sel=''; location.hash=''; }
+      await this.load();
+    },
+    // scan with the toolbar type picker — site row or detail header
+    async scanSite(s){
+      this.busy=true;
+      const only=this.scanType==='custom'?this.onlySel.join(','):(this.scanType==='deep'?'':this.scanType);
+      await this.j('/api/scan-now',{method:'POST',body:JSON.stringify({
+        key:s.key,deep:this.scanType==='deep',only:only||''})});
+      setTimeout(async()=>{ this.busy=false; await this.load();
+        if(this.sel===s.key) this.open(s.key); },2000);
+    },
+    // ad-hoc url scan via POST /api/scan
+    async scanUrl(){
+      if(!this.addUrl) return;
+      this.busy=true;
+      const only=this.scanType==='custom'?this.onlySel.join(','):'';
+      await this.j('/api/scan',{method:'POST',body:JSON.stringify({
+        url:this.addUrl,wait:60,deep:this.scanType==='deep',only})});
+      this.busy=false; this.addUrl=''; await this.load();
+    },
+    async prune(key){
+      const r=await this.j('/api/prune',{method:'POST',body:JSON.stringify({key})});
+      alert('pruned '+(r&&r.dropped)+' runs per retention policy');
     },
     async scan(key){
       this.busy=true;
