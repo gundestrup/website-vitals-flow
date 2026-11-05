@@ -60,6 +60,12 @@ func (r *Runner) Start(ctx context.Context) {
 }
 
 func (r *Runner) exec(ctx context.Context, jobID int64) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			_ = r.st.JobState(ctx, jobID, "failed",
+				fmt.Sprintf("panic in scan: %v", rec))
+		}
+	}()
 	j, _, err := r.st.JobByID(ctx, jobID)
 	if err != nil {
 		return
