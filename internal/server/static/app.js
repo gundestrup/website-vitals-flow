@@ -130,6 +130,8 @@ document.addEventListener('alpine:init', () => {
       const sm=(d.samples&&d.samples.length)?d.samples[d.samples.length-1]:null;
       return (sm&&sm.screenshot)?('data:image/jpeg;base64,'+sm.screenshot):null;
     },
+    monitored(){ return this.sites.filter(s=>s.schedule); },
+    adhoc(){ return this.sites.filter(s=>!s.schedule); },
     siteByKey(k){ return this.sites.find(x=>x.key===k)||{key:k} },
     async scanSite(s){
       this.busy=true;
