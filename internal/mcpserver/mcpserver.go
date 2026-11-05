@@ -42,7 +42,7 @@ var tools = []map[string]any{
 			"url":     map[string]string{"type": "string", "description": "URL to scan (http://localhost:3000, https://example.com)"},
 			"deep":    map[string]string{"type": "boolean", "description": "also run web-vitals attribution + lighthouse"},
 			"samples": map[string]string{"type": "integer", "description": "loads per scan (default from config)"},
-			"only":    map[string]string{"type": "string", "description": "comma list to focus: lcp,cls,tbt,ttfb,fcp,http,deep,images"},
+			"only":    map[string]string{"type": "string", "description": "comma list to focus: ttfb,fcp,lcp,cls,tbt,inp,vitals,http,h3,images,js,css,deep,psi — combine several e.g. lcp,cls"},
 		}, "required": []string{"url"}}},
 	{"name": "sites", "description": "List monitored sites.",
 		"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}}},

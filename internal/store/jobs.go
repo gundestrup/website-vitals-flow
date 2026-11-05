@@ -18,17 +18,18 @@ type Job struct {
 	StartedAt  string `json:"started_at"`
 	FinishedAt string `json:"finished_at"`
 	Deep       bool   `json:"deep"`
+	Only       string `json:"only,omitempty"`
 }
 
 // InsertJob enqueues a job row and returns its id.
-func (s *Store) InsertJob(ctx context.Context, kind string, siteID int64, deep bool) (int64, error) {
+func (s *Store) InsertJob(ctx context.Context, kind string, siteID int64, deep bool, only string) (int64, error) {
 	d := 0
 	if deep {
 		d = 1
 	}
 	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO jobs (kind, site_id, state, queued_at, deep) VALUES (?,?, 'queued', ?, ?)`,
-		kind, siteID, time.Now().UTC().Format(time.RFC3339), d)
+		`INSERT INTO jobs (kind, site_id, state, queued_at, deep, "only") VALUES (?,?, 'queued', ?, ?, ?)`,
+		kind, siteID, time.Now().UTC().Format(time.RFC3339), d, only)
 	if err != nil {
 		return 0, err
 	}
@@ -143,9 +144,9 @@ func (s *Store) JobByID(ctx context.Context, id int64) (*Job, int64, error) {
 	err := s.db.QueryRowContext(ctx,
 		`SELECT id, kind, site_id, state, detail, queued_at,
 		  COALESCE(started_at,''), COALESCE(finished_at,''), COALESCE(run_id,0),
-		  COALESCE(deep,0)
+		  COALESCE(deep,0), COALESCE("only",'')
 		 FROM jobs WHERE id=?`, id).Scan(&j.ID, &j.Kind, &j.SiteID, &j.State,
-		&j.Detail, &j.QueuedAt, &st, &fi, &runID, &deepInt)
+		&j.Detail, &j.QueuedAt, &st, &fi, &runID, &deepInt, &j.Only)
 	j.Deep = deepInt == 1
 	j.StartedAt, j.FinishedAt = st, fi
 	return &j, runID, err

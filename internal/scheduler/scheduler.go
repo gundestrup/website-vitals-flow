@@ -48,7 +48,7 @@ func sweep(ctx context.Context, st *store.Store, r *jobs.Runner) {
 		}
 		last, err := st.LatestRunTime(ctx, site.ID)
 		if err == sql.ErrNoRows || err != nil || time.Since(last) >= interval {
-			r.Enqueue(ctx, site.ID, "scan", site.Deep)
+			r.Enqueue(ctx, site.ID, "scan", site.Deep, "")
 		}
 	}
 }
