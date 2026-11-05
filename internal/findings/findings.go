@@ -9,6 +9,8 @@ import (
 
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/deep"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/measure"
+	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/psi"
+	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/score"
 )
 
 // Finding is an alias to the measure type — findings produces them,
@@ -304,4 +306,87 @@ func FromLighthouse(lh *deep.LHReport) []measure.Finding {
 		})
 	}
 	return out
+}
+
+// FromAttribution surfaces the web-vitals debugger payload as info
+// findings — LCP element, CLS shift sources, worst INP target.
+func FromAttribution(a *deep.Attribution) []measure.Finding {
+	if a == nil {
+		return nil
+	}
+	var out []measure.Finding
+	info := func(id, title, detail, link string) {
+		out = append(out, measure.Finding{ID: id, Severity: measure.SevInfo,
+			Category: "attribution", Title: title, Detail: detail, Link: link})
+	}
+	if a.LCPElement != "" {
+		info("attr_lcp", "LCP element", a.LCPElement+" "+a.LCPURL,
+			"https://web.dev/articles/optimize-lcp")
+	}
+	if len(a.LCPSubparts) > 0 {
+		info("attr_lcp_parts", "LCP phase breakdown",
+			strings.Join(a.LCPSubparts, " · "),
+			"https://web.dev/articles/optimize-lcp#lcp-breakdown")
+	}
+	for _, it := range a.CLSItems {
+		info("attr_cls", "CLS shift source", it,
+			"https://web.dev/articles/optimize-cls")
+	}
+	if a.INPms != nil {
+		info("attr_inp", "Worst interaction (lab-INP)",
+			fmt.Sprintf("%.0fms %s %s", *a.INPms, a.INPType, a.INPTarget),
+			"https://web.dev/articles/inp")
+	}
+	return out
+}
+
+// FromPSI surfaces CrUX field p75 + lab vitals as findings when PSI
+// data exists (public FQDN + quota only).
+func FromPSI(p *psi.Result) []measure.Finding {
+	if p == nil {
+		return nil
+	}
+	var out []measure.Finding
+	if p.FieldData {
+		field := map[string]string{
+			"LARGEST_CONTENTFUL_PAINT_MS":  "lcp",
+			"FIRST_CONTENTFUL_PAINT_MS":    "fcp",
+			"TIME_TO_FIRST_BYTE_MS":        "ttfb",
+			"INTERACTION_TO_NEXT_PAINT_MS": "inp",
+		}
+		for k, id := range field {
+			if v, ok := p.P75[k]; ok {
+				sev := sevOf(score.Metric(id, v))
+				out = append(out, measure.Finding{
+					ID: "psi_" + id, Severity: sev, Category: "psi-field",
+					Title:  "CrUX p75 " + id,
+					Detail: fmt.Sprintf("%.0fms real-user", v),
+					Link:   "https://web.dev/articles/vitals"})
+			}
+		}
+		if v, ok := p.P75["CUMULATIVE_LAYOUT_SHIFT_SCORE"]; ok {
+			sev := sevOf(score.Metric("cls", v/100))
+			out = append(out, measure.Finding{ID: "psi_cls", Severity: sev,
+				Category: "psi-field", Title: "CrUX p75 cls",
+				Detail: fmt.Sprintf("%.2f real-user", v/100),
+				Link:   "https://web.dev/articles/cls"})
+		}
+	}
+	if p.PerfScore > 0 && p.PerfScore < 90 {
+		out = append(out, measure.Finding{ID: "psi_score",
+			Severity: measure.SevWarn, Category: "psi-lab",
+			Title: fmt.Sprintf("PSI performance score %.0f", p.PerfScore),
+			Link:  "https://developer.chrome.com/docs/lighthouse/performance/performance-scoring"})
+	}
+	return out
+}
+
+func sevOf(b score.Band) measure.Severity {
+	switch b {
+	case score.Poor:
+		return measure.SevPoor
+	case score.OK:
+		return measure.SevWarn
+	}
+	return measure.SevInfo
 }
