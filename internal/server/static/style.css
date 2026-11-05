@@ -56,3 +56,6 @@ body { min-height: 100vh; background: var(--wvf-paper); color: var(--wvf-ink); }
 .band-ok { background:#f9a825; color:#222; }
 .band-poor { background:#c62828; }
 .band-na { background:var(--wvf-muted); }
+
+.badge-img { height:18px; vertical-align:middle; }
+.badge-val { margin-left:.45em; font-size:.78rem; }
