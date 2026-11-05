@@ -74,7 +74,11 @@ document.addEventListener('alpine:init', () => {
       if(this.runs.length){
         const det=await this.j('/api/runs/'+this.runs[0].id);
         try{ this.det=JSON.parse(det.detail_json);
-             this.findings=this.det.findings||[] }catch(e){ this.det=null; this.findings=[] }
+             const seen=new Set();
+             this.findings=(this.det.findings||[]).filter(f=>{
+               const k=f.id+'|'+f.title+'|'+(f.detail||'');
+               return !seen.has(k)&&(seen.add(k),true)});
+           }catch(e){ this.det=null; this.findings=[] }
       }
       this.draw();
     },

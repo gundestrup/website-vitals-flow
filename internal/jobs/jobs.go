@@ -146,6 +146,8 @@ func RunSiteScan(ctx context.Context, st *store.Store, cfg config.Config,
 	res.Findings = append(res.Findings, findings.FromLighthouse(res.Lighthouse)...)
 	res.Findings = append(res.Findings, findings.FromAttribution(res.Attribution)...)
 	res.Findings = append(res.Findings, findings.FromPSI(res.PSI)...)
+	res.Findings = findings.Dedup(res.Findings)
+	res.Findings = findings.Dedup(res.Findings)
 	progress("storing")
 	runID, err := Persist(ctx, st, site, res, started)
 	return res, runID, err
