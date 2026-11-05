@@ -67,3 +67,5 @@ body { min-height: 100vh; background: var(--wvf-paper); color: var(--wvf-ink); }
 .metric-val { font-size:1.05rem; font-weight:700; margin-top:.3em; }
 .metric-lbl { font-size:.68rem; text-transform:uppercase; letter-spacing:.08em;
   color:var(--wvf-muted); }
+
+.metric-age { margin-left:.6em; color:var(--wvf-muted); font-size:.9em; }

@@ -4,7 +4,7 @@ import { makeBadge } from "badge-maker";
 import { writeFileSync } from "fs";
 
 const metrics = ["lcp","fcp","cls","ttfb","tbt","inp","proto","comp","cache","tls"];
-const bands = { good: "#2e7d32", ok: "#f9a825", poor: "#c62828" };
+const bands = { good: "#2e7d32", ok: "#f9a825", poor: "#c62828", na: "#97a5a0" };
 const out = "internal/server/static/badges/";
 
 for (const m of metrics) {

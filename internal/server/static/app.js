@@ -13,36 +13,47 @@ document.addEventListener('alpine:init', () => {
     },
     fmtv(id,v){ return id==='cls'?(v==null?'-':v.toFixed(3)):(v==null?'-':Math.round(v)+'ms') },
     chart2: null, det: null,
+    age(ts){
+      const ms=Date.now()-new Date(ts).getTime();
+      const m=ms/6e4; if(m<60) return Math.max(1,Math.round(m))+'m';
+      const h=m/60;  if(h<24) return Math.round(h)+'h';
+      const d=h/24;  if(d<365) return Math.round(d)+'d';
+      return Math.round(d/365)+'y';
+    },
     metricCards(){
       const r=this.last[this.sel]; if(!r) return [];
+      // newest stored run (may be failed) — stamp cards when the
+      // shown value came from an older ok run
+      const newest=this.runs[0];
+      const stale=newest && r.id!==newest.id ? this.age(r.started_at) : null;
       const out=[];
       const ms=(id,v,label)=>{out.push({id,band:this.bandName(id,v),
-        text:this.fmtv(id,v),label})};
+        text:this.fmtv(id,v),label,age:stale})};
       ms('ttfb',r.ttfb_ms,'TTFB'); ms('fcp',r.fcp_ms,'FCP');
       ms('lcp',r.lcp_ms,'LCP');   ms('cls',r.cls,'CLS');
       ms('tbt',r.tbt_ms,'TBT');
-      out.push({id:'',band:'na',text:r.request_count??'-',label:'requests'});
-      out.push({id:'',band:'na',text:r.page_bytes?Math.round(r.page_bytes/1024)+'KB':'-',label:'weight'});
-      out.push({id:'',band:'na',text:r.dom_nodes??'-',label:'DOM nodes'});
+      out.push({id:'',band:'na',text:r.request_count??'-',label:'requests',age:stale});
+      out.push({id:'',band:'na',text:r.page_bytes?Math.round(r.page_bytes/1024)+'KB':'-',label:'weight',age:stale});
+      out.push({id:'',band:'na',text:r.dom_nodes??'-',label:'DOM nodes',age:stale});
       const proto=r.http_protocol||'';
       out.push({id:'proto',band:proto.startsWith('h3')||proto.startsWith('h2')?'good':proto?'ok':'na',
-        text:proto||'-',label:'protocol'});
+        text:proto||'-',label:'protocol',age:stale});
       // detail_json fields (encoding/tls/dom/cache live per-response)
       const d=this.det||{};
       const smp=(d.samples&&d.samples.length)?d.samples[d.samples.length-1]:{};
       const resp=(smp.responses||d.responses||[]);
       const enc=(resp[0]&&(resp[0].encoding||resp[0].content_encoding))||'';
       out.push({id:'comp',band:(enc==='br'||enc==='zstd')?'good':enc==='gzip'?'ok':enc?'poor':'na',
-        text:enc||'-',label:'encoding'});
+        text:enc||'-',label:'encoding',age:stale});
       const tls=(d.http&&d.http.tls_version)||'';
       out.push({id:'tls',band:tls.includes('1.3')?'good':tls?'ok':'na',
-        text:tls||'-',label:'TLS'});
+        text:tls||'-',label:'TLS',age:stale});
       const cv=(d.http&&d.http.cache)||[];
       const tot=cv.length, cacheN=cv.filter(x=>x.cacheable).length;
       const pct=tot?Math.round(cacheN/tot*100):0;
       out.push({id:'cache',band:tot?(pct>=80?'good':pct>=50?'ok':'poor'):'na',
-        text:tot?pct+'%':'-',label:'cacheable'});
-      out[7]={id:'',band:'na',text:smp.dom_nodes??r.dom_nodes??'-',label:'DOM nodes'};
+        text:tot?pct+'%':'-',label:'cacheable',age:stale});
+      out[7]={id:'',band:'na',text:smp.dom_nodes??r.dom_nodes??'-',label:'DOM nodes',age:stale};
       return out;
     },
     async j(u,o){ const r=await fetch(u,o); return r.json() },
