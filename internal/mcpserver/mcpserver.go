@@ -152,7 +152,7 @@ func callTool(ctx context.Context, st *store.Store, cfg config.Config,
 			"ttfb_ms": last.TTFBms, "fcp_ms": last.FCPms, "lcp_ms": last.LCPms,
 			"cls": last.CLS, "tbt_ms": last.TBTms,
 			"requests": len(last.Responses), "attribution": res.Attribution,
-			"lighthouse": res.Lighthouse,
+			"lighthouse": res.Lighthouse, "findings": res.Findings,
 		})
 	case "sites":
 		sites, err := st.ListSites(ctx)
@@ -175,7 +175,14 @@ func callTool(ctx context.Context, st *store.Store, cfg config.Config,
 		if err != nil {
 			return errResult(err.Error())
 		}
-		return okResult(run)
+		// surface the unified findings list (our checks + lh +
+		// attribution + psi merged at persist) alongside the run
+		var det struct {
+			Findings json.RawMessage `json:"findings"`
+		}
+		_ = json.Unmarshal([]byte(run.DetailJSON), &det)
+		return okResult(map[string]any{
+			"run": run, "findings": det.Findings})
 	case "prune":
 		sites, err := st.ListSites(ctx)
 		if err != nil {

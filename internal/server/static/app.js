@@ -12,7 +12,7 @@ document.addEventListener('alpine:init', () => {
       return this.band(id,v).replace('band-','');
     },
     fmtv(id,v){ return id==='cls'?(v==null?'-':v.toFixed(3)):(v==null?'-':Math.round(v)+'ms') },
-    chart2: null,
+    chart2: null, det: null,
     metricCards(){
       const r=this.last[this.sel]; if(!r) return [];
       const out=[];
@@ -27,12 +27,22 @@ document.addEventListener('alpine:init', () => {
       const proto=r.http_protocol||'';
       out.push({id:'proto',band:proto.startsWith('h3')||proto.startsWith('h2')?'good':proto?'ok':'na',
         text:proto||'-',label:'protocol'});
-      const enc=r.content_encoding||'';
+      // detail_json fields (encoding/tls/dom/cache live per-response)
+      const d=this.det||{};
+      const smp=(d.samples&&d.samples.length)?d.samples[d.samples.length-1]:{};
+      const resp=(smp.responses||d.responses||[]);
+      const enc=(resp[0]&&(resp[0].encoding||resp[0].content_encoding))||'';
       out.push({id:'comp',band:(enc==='br'||enc==='zstd')?'good':enc==='gzip'?'ok':enc?'poor':'na',
         text:enc||'-',label:'encoding'});
-      const tls=r.tls_version||'';
+      const tls=(d.http&&d.http.tls_version)||'';
       out.push({id:'tls',band:tls.includes('1.3')?'good':tls?'ok':'na',
         text:tls||'-',label:'TLS'});
+      const cv=(d.http&&d.http.cache)||[];
+      const tot=cv.length, cacheN=cv.filter(x=>x.cacheable).length;
+      const pct=tot?Math.round(cacheN/tot*100):0;
+      out.push({id:'cache',band:tot?(pct>=80?'good':pct>=50?'ok':'poor'):'na',
+        text:tot?pct+'%':'-',label:'cacheable'});
+      out[7]={id:'',band:'na',text:smp.dom_nodes??r.dom_nodes??'-',label:'DOM nodes'};
       return out;
     },
     async j(u,o){ const r=await fetch(u,o); return r.json() },
@@ -52,7 +62,8 @@ document.addEventListener('alpine:init', () => {
       this.runs=(await this.j('/api/sites/'+key+'/runs'))||[];
       if(this.runs.length){
         const det=await this.j('/api/runs/'+this.runs[0].id);
-        try{ this.findings=JSON.parse(det.detail_json).findings||[] }catch(e){ this.findings=[] }
+        try{ this.det=JSON.parse(det.detail_json);
+             this.findings=this.det.findings||[] }catch(e){ this.det=null; this.findings=[] }
       }
       this.draw();
     },
