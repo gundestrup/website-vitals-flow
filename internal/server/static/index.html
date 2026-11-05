@@ -38,13 +38,13 @@
   </div></template>
   <h2 class="title is-5 section-heading">Trends</h2>
   <div class="trend-grid">
-    <div class=trend-cell><div class=metric-lbl>TTFB</div><canvas id="tr-ttfb"></canvas></div>
-    <div class=trend-cell><div class=metric-lbl>FCP</div><canvas id="tr-fcp"></canvas></div>
-    <div class=trend-cell><div class=metric-lbl>LCP</div><canvas id="tr-lcp"></canvas></div>
-    <div class=trend-cell><div class=metric-lbl>CLS</div><canvas id="tr-cls"></canvas></div>
-    <div class=trend-cell><div class=metric-lbl>TBT</div><canvas id="tr-tbt"></canvas></div>
-    <div class=trend-cell><div class=metric-lbl>requests</div><canvas id="tr-reqs"></canvas></div>
-    <div class=trend-cell><div class=metric-lbl>weight</div><canvas id="tr-weight"></canvas></div>
+    <div class=trend-cell><div class=metric-lbl>TTFB</div><div class=trend-chart><canvas id="tr-ttfb"></canvas></div></div>
+    <div class=trend-cell><div class=metric-lbl>FCP</div><div class=trend-chart><canvas id="tr-fcp"></canvas></div></div>
+    <div class=trend-cell><div class=metric-lbl>LCP</div><div class=trend-chart><canvas id="tr-lcp"></canvas></div></div>
+    <div class=trend-cell><div class=metric-lbl>CLS</div><div class=trend-chart><canvas id="tr-cls"></canvas></div></div>
+    <div class=trend-cell><div class=metric-lbl>TBT</div><div class=trend-chart><canvas id="tr-tbt"></canvas></div></div>
+    <div class=trend-cell><div class=metric-lbl>requests</div><div class=trend-chart><canvas id="tr-reqs"></canvas></div></div>
+    <div class=trend-cell><div class=metric-lbl>weight</div><div class=trend-chart><canvas id="tr-weight"></canvas></div></div>
   </div>
   <h2 class="title is-5 section-heading" x-show="findings.length">Findings</h2>
   <template x-for="f in findings"><div class="job-row" style="padding:.4em 0">

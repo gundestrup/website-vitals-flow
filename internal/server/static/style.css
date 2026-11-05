@@ -74,4 +74,7 @@ body { min-height: 100vh; background: var(--wvf-paper); color: var(--wvf-ink); }
   gap:.7em; margin-bottom:1.2em; }
 .trend-cell { border:1px solid var(--wvf-line); border-radius:6px; padding:.5em .6em .2em;
   background:var(--wvf-bg-soft,#fff); height:170px; }
-.trend-cell canvas { height:135px; }
+/* Chart.js needs a positioned parent to size correctly —
+   otherwise the canvas overflows the card bottom */
+.trend-chart { position:relative; height:135px; margin-top:.2em; }
+
