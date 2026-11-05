@@ -16,6 +16,7 @@ Trigger a scan for any URL — the site key is created on first sight.
 | `url` | required; normalized via sitekey (`localhost:3000` etc.) |
 | `wait` | optional seconds, ≤300 — blocks until done/failed/timeout |
 | `deep` | optional — add web-vitals attribution + lighthouse |
+| `only` | optional comma list — `ttfb,fcp,lcp,cls,tbt,inp,vitals,http,h3,images,js,css,deep,psi` (combine several e.g. `lcp,cls`); overrides the site's stored only |
 
 Sync response: `{"job": 3, "site": "localhost:3000", "state": "done",
 "run_id": 12, "run": {...}}`. Async: omit `wait`, poll the job.
@@ -66,7 +67,8 @@ at `http://127.0.0.1:8420` covers that today.
   "env": {"WVF_STATE_DB": "/path/to/state.db"}}}}
 ```
 
-Tools: `scan {url, deep, samples}` (synchronous, returns metrics +
+Tools: `scan {url, deep, only, samples}` (synchronous, returns metrics +
+the unified **findings** list — our checks + `lh_*` + `attr_*` + `psi_*`
 run_id), `sites`, `history {site, limit}`, `run {id}` (full detail incl.
 per-request timing + findings), `prune`. Works in Devin, Cursor, Claude
 Desktop — no per-IDE code needed.
