@@ -59,3 +59,11 @@ body { min-height: 100vh; background: var(--wvf-paper); color: var(--wvf-ink); }
 
 .badge-img { height:18px; vertical-align:middle; }
 .badge-val { margin-left:.45em; font-size:.78rem; }
+
+.metric-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr));
+  gap:.7em; margin:1em 0 1.5em; }
+.metric-cell { border:1px solid var(--wvf-line); border-radius:6px;
+  padding:.6em .8em; background:var(--wvf-bg-soft,#fff); }
+.metric-val { font-size:1.05rem; font-weight:700; margin-top:.3em; }
+.metric-lbl { font-size:.68rem; text-transform:uppercase; letter-spacing:.08em;
+  color:var(--wvf-muted); }
