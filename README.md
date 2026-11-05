@@ -36,8 +36,49 @@ scan/history/run/prune as native agent tools.
 
 ## Commands
 
-`scan <url>` [--samples N] [--settle D] [--timeout D] [--json] [--html f] [--deep] [--psi]
-`sites add|list|remove` · `report <id>` · `prune [--site k]` · `serve` · `doctor`
+`scan <url>` [--samples N] [--settle D] [--timeout D] [--json] [--html f] [--deep] [--psi] [--only lcp,cls,...]
+`sites add|list|remove` [--schedule D] [--deep] [--only set] · `report <id>` · `prune`
+`compare <site>` [--base <run-id>] [--thresh %] — baseline-vs-latest metric diff
+`serve` · `doctor` · `mcp` (stdio MCP server for IDEs/agents)
+
+### Badges & screenshots
+
+- `GET /badges/{metric}-{band}.svg` — vendored shields.io badges
+  (badge-maker, generated offline via `npm run gen:badges`)
+- `GET /badge.svg?metric=lcp&value=648` or `?run=<id>&metric=cls` —
+  value-bearing badges, band-colored
+- `go run ./scripts/shot <url> <out.png> [wait-ms] ['js'] [height]` —
+  regenerate docs/screenshots headlessly
+
+## Inspiration
+
+wvf takes heavy inspiration from [webvitals.dev](https://webvitals.dev/)
+(CWV debugging tooling — LCP/CLS/INP attribution, threshold bands) and
+[sitespeed.io](https://sitespeed.io) (repeatable median-of-N scanning,
+coach-style findings, trend history), and from
+[Lighthouse](https://github.com/googlechrome/lighthouse)/PSI for audits
+and field data. Unlike sitespeed's Grafana/Graphite stack, wvf is a
+**minimal self-hosted single binary** for local and dev-loop testing:
+SQLite state, embedded dashboard, serialized scan queue, zero daemons.
+
+## Resources & packages
+
+Measurement: [chromedp](https://github.com/chromedp/chromedp) (CDP),
+[web-vitals](https://github.com/GoogleChrome/web-vitals) 6.2.3 vendored,
+[Lighthouse](https://github.com/googlechrome/lighthouse) (optional),
+[PSI API](https://developers.google.com/speed/docs/insights/v5/about),
+[quic-go](https://github.com/quic-go/quic-go) (h3 probe),
+[cachecontrol](https://github.com/pquerna/cachecontrol) (RFC 7234).
+Infra: [cobra](https://github.com/spf13/cobra),
+[modernc sqlite](https://pkg.go.dev/modernc.org/sqlite) (pure-Go).
+UI: [Bulma](https://bulma.io), [Alpine CSP](https://alpinejs.dev),
+[Chart.js](https://www.chartjs.org), [shields.io](https://shields.io)/
+[badge-maker](https://www.npmjs.com/package/badge-maker) — all vendored,
+no CDN/runtime deps. References:
+[web.dev vitals](https://web.dev/articles/vitals),
+[Lighthouse scoring](https://developer.chrome.com/docs/lighthouse/performance/performance-scoring),
+[Chrome performance insights](https://developer.chrome.com/docs/performance/insights),
+[WebPageTest](https://github.com/catchpoint/WebPageTest) (prior art).
 
 ## Config (wvf.yml / WVF_* env)
 
