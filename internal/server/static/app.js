@@ -61,7 +61,9 @@ document.addEventListener('alpine:init', () => {
     async j(u,o){ const r=await fetch(u,o); return r.json() },
     async load(){
       this.sites = await this.j('/api/sites') || [];
-      const h=location.hash.slice(1) || new URLSearchParams(location.search).get('site');
+      const pm=location.pathname.match(/^\/site\/(.+)/);
+      const h=(pm?decodeURIComponent(pm[1]):null)||location.hash.slice(1)||
+              new URLSearchParams(location.search).get('site');
       if(h && !this.sel){ this.sel=h; this.open(h); }
       this.jobs = await this.j('/api/jobs') || [];
       for (const s of this.sites){
@@ -77,10 +79,10 @@ document.addEventListener('alpine:init', () => {
     },
     back(){
       this.sel=''; this.det=null; this.findings=[]; this.runs=[];
-      location.hash='';
+      history.pushState({},'','/');
     },
     async open(key){
-      this.sel=key; location.hash=key;
+      this.sel=key; history.pushState({},'', '/site/'+encodeURIComponent(key));
       this.runs=(await this.j('/api/sites/'+key+'/runs'))||[];
       if(this.runs.length){
         const det=await this.j('/api/runs/'+this.runs[0].id);
@@ -114,7 +116,7 @@ document.addEventListener('alpine:init', () => {
     async delSite(s){
       if(!confirm('remove '+s.key+' and its history?')) return;
       await this.j('/api/sites/'+s.key,{method:'DELETE'});
-      if(this.sel===s.key){ this.sel=''; location.hash=''; }
+      if(this.sel===s.key){ this.sel=''; history.pushState({},'','/'); }
       await this.load();
     },
     // scan with the toolbar type picker — site row or detail header
