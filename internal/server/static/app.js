@@ -77,8 +77,17 @@ document.addEventListener('alpine:init', () => {
       const cv=(d.http_checks&&d.http_checks.cache)||[];
       const tot=cv.length, cacheN=cv.filter(x=>x.cacheable).length;
       const pct=tot?Math.round(cacheN/tot*100):0;
+      // NB: % scores static ASSET cacheability; the lines below are
+      // the DOCUMENT page's cache/CDN header signals — different thing
+      // (a 'no-cache' html is correct even when assets cache 100%).
+      const sig=(d.http_checks&&d.http_checks.signals)||{};
+      const SIGT={'cache-control':'Cache-Control header present','expires':'Expires header present',
+        'last-modified':'Last-Modified validator','etag':'ETag validator','vary':'Vary header',
+        'age':'CDN/proxy age (cached)','cf-cache-status':'Cloudflare cache status',
+        'x-cache':'proxy cache status','x-cache-hits':'cache hit counter'};
       out.push({id:'cache',band:tot?(pct>=80?'good':pct>=50?'ok':'poor'):'na',
-        text:tot?pct+'%':'-',label:'cacheable',title:'share of responses marked cacheable',age:stale});
+        text:tot?pct+'%':'-',label:'cacheable',title:'share of responses marked cacheable',age:stale,
+        lines:Object.keys(SIGT).map(k=>({ok:!!sig[k],label:k,title:SIGT[k]}))});
       return out;
     },
     async j(u,o){ const r=await fetch(u,o); return r.json() },
