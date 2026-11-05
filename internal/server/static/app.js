@@ -69,6 +69,15 @@ document.addEventListener('alpine:init', () => {
         // last successful run — failed ticks carry null metrics
         if (rr && rr.length) this.last[s.key]=rr.find(r=>r.status==='ok')||rr[0];
       }
+      // async refresh: fast poll while a job is queued/running
+      const active=this.jobs.some(j=>j.state==='queued'||j.state==='running');
+      clearTimeout(this._poll);
+      this._poll=setTimeout(()=>{ this.load();
+        if(this.sel) this.open(this.sel); }, active?3000:15000);
+    },
+    back(){
+      this.sel=''; this.det=null; this.findings=[]; this.runs=[];
+      location.hash='';
     },
     async open(key){
       this.sel=key; location.hash=key;
@@ -123,8 +132,10 @@ document.addEventListener('alpine:init', () => {
       if(!this.addUrl) return;
       this.busy=true;
       const only=this.scanType==='custom'?this.onlySel.join(','):'';
-      await this.j('/api/scan',{method:'POST',body:JSON.stringify({
+      const r=await this.j('/api/scan',{method:'POST',body:JSON.stringify({
         url:this.addUrl,wait:60,deep:this.scanType==='deep',only})});
+      if(!r||r.error){ this.busy=false;
+        alert('scan failed: '+((r&&r.error)||'request failed')); return; }
       this.busy=false; this.addUrl=''; await this.load();
     },
     async prune(key){

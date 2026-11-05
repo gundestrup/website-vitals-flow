@@ -47,7 +47,7 @@
     <button class="button is-small is-light" @click="delSite(s)">✕</button></td>
 </tr></template></tbody></table></div></div>
 <div x-show="sel" style="margin-top:1em">
-  <a href="#" @click.prevent="sel='';location.hash=''" class="mono" style="font-size:.8rem">← all sites</a>
+  <a href="#" @click.prevent="back()" class="mono" style="font-size:.8rem">← all sites</a>
   <span style="float:right;display:flex;gap:.5em;align-items:center">
     <select class="select is-small" x-model="scanType" style="width:auto">
       <option value="">default</option><option value="deep">deep</option><option value="custom">custom…</option>
