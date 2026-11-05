@@ -5,6 +5,23 @@
 <h1 class="title is-4 section-heading">Monitored sites</h1>
 <div x-data="dash" x-init="load()">
 <div x-show="!sel">
+<!-- add site + ad-hoc scan toolbar -->
+<div class="box is-shadowless" style="border:1px solid var(--wvf-line);padding:.7em;margin-bottom:.9em">
+  <div style="display:flex;gap:.6em;flex-wrap:wrap;align-items:center">
+    <input class="input is-small" style="width:280px" placeholder="https://site or localhost:3000" x-model="addUrl">
+    <input class="input is-small" style="width:110px" placeholder="schedule 30m" x-model="addSched">
+    <button class="button is-small is-primary" @click="addSite()">add site</button>
+    <span class=metric-lbl>scan type:</span>
+    <select class="select is-small" x-model="scanType">
+      <option value="">default</option><option value="deep">deep</option><option value="custom">custom…</option>
+    </select>
+    <template x-if="scanType==='custom'"><span style="display:flex;gap:.5em;flex-wrap:wrap">
+      <template x-for="o in onlyOpts"><label class="mono" style="font-size:.75rem">
+        <input type=checkbox :value="o" x-model="onlySel"> <span x-text="o"></span></label></template>
+    </span></template>
+    <button class="button is-small" @click="scanUrl()">scan url</button>
+  </div>
+</div>
 <template x-if="jobs.length"><div class="box is-shadowless" style="border:1px solid var(--wvf-line);padding:.7em">
   <template x-for="j in jobs.slice(0,4)"><div class="job-row mono" x-text="j.state+': '+(j.detail||'')"></div></template>
 </div></template>
@@ -24,10 +41,24 @@
   <td><template x-if="last[s.key]"><span>
       <img class=badge-img x-bind:src="'/badges/cls-'+bandName('cls',last[s.key].cls)+'.svg'">
       <span class="badge-val mono" x-text="fmtv('cls',last[s.key].cls)"></span></span></template></td>
-  <td><button class="button is-small is-primary" @click="scan(s.key)" x-bind:disabled="busy">scan now</button></td>
+  <td style="white-space:nowrap">
+    <button class="button is-small is-primary" @click="scanSite(s)" x-bind:disabled="busy">scan</button>
+    <button class="button is-small" @click="editSite(s)">edit</button>
+    <button class="button is-small is-light" @click="delSite(s)">✕</button></td>
 </tr></template></tbody></table></div></div>
 <div x-show="sel" style="margin-top:1em">
   <a href="#" @click.prevent="sel='';location.hash=''" class="mono" style="font-size:.8rem">← all sites</a>
+  <span style="float:right;display:flex;gap:.5em;align-items:center">
+    <select class="select is-small" x-model="scanType" style="width:auto">
+      <option value="">default</option><option value="deep">deep</option><option value="custom">custom…</option>
+    </select>
+    <template x-if="scanType==='custom'"><span style="display:flex;gap:.4em">
+      <template x-for="o in onlyOpts"><label class="mono" style="font-size:.75rem">
+        <input type=checkbox :value="o" x-model="onlySel"> <span x-text="o"></span></label></template>
+    </span></template>
+    <button class="button is-small is-primary" @click="scanSite({key:sel})" x-bind:disabled="busy">scan</button>
+    <button class="button is-small" @click="prune(sel)">prune</button>
+  </span>
   <p class=eyebrow x-text="sel"></p>
   <template x-if="last[sel]"><div class="metric-grid">
     <template x-for="m in metricCards()"><div class="metric-cell">
