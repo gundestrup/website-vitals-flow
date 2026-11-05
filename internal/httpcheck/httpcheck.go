@@ -43,6 +43,9 @@ type Result struct {
 	Encodings  map[string]*EncodingProbe `json:"encodings"`
 	Cache      []CacheVerdict            `json:"cache,omitempty"`
 	Basics     map[string]int            `json:"basics,omitempty"` // path -> status
+	// Signals: which caching/CDN headers the DOCUMENT response sent —
+	// each renders as a green/gray checklist item (httpcaching.com style).
+	Signals map[string]bool `json:"signals,omitempty"`
 }
 
 // Asset is one response's cache-relevant headers (from the CDP layer).
@@ -88,6 +91,11 @@ func Probe(ctx context.Context, rawurl string) (*Result, error) {
 	res.Redirects = redirects
 	res.Server = lastResp.Header.Get("Server")
 	res.AltSvc = lastResp.Header.Get("Alt-Svc")
+	res.Signals = map[string]bool{}
+	for _, h := range []string{"Cache-Control", "Expires", "Last-Modified",
+		"ETag", "Vary", "Age", "CF-Cache-Status", "X-Cache", "X-Cache-Hits"} {
+		res.Signals[strings.ToLower(h)] = lastResp.Header.Get(h) != ""
+	}
 	if lastResp.TLS != nil {
 		res.TLSVersion = tls.VersionName(lastResp.TLS.Version)
 	}

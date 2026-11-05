@@ -136,6 +136,22 @@ document.addEventListener('alpine:init', () => {
     },
     monitored(){ return this.sites.filter(s=>s.schedule); },
     adhoc(){ return this.sites.filter(s=>!s.schedule); },
+    // httpcaching.com-style checklists: header presence + encoding results
+    signalList(){
+      const d=this.det||{}; const sig=(d.http&&d.http.signals)||{};
+      const out=[];
+      for(const k of ['cache-control','expires','last-modified','etag','vary',
+                      'age','cf-cache-status','x-cache','x-cache-hits'])
+        out.push({l:k,ok:!!sig[k]});
+      return out;
+    },
+    encList(){
+      const d=this.det||{}; const enc=(d.http&&d.http.encodings)||{};
+      const out=[];
+      for(const k of ['br','gzip','zstd'])
+        out.push({l:k,ok:!!(enc[k]&&enc[k].ok)});
+      return out;
+    },
     siteByKey(k){ return this.sites.find(x=>x.key===k)||{key:k} },
     async scanSite(s){
       this.busy=true;
