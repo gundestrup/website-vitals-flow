@@ -34,11 +34,12 @@ document.addEventListener('alpine:init', () => {
       ms('ttfb',r.ttfb_ms,'TTFB'); ms('fcp',r.fcp_ms,'FCP');
       ms('lcp',r.lcp_ms,'LCP');   ms('cls',r.cls,'CLS');
       ms('tbt',r.tbt_ms,'TBT');
-      out.push({id:'',band:'na',text:r.request_count??'-',label:'requests',age:stale});
-      out.push({id:'',band:'na',icon:'/icons/weight-svgrepo-com.svg',
-        text:r.page_bytes?Math.round(r.page_bytes/1024)+'KB':'-',label:'weight',age:stale});
-      out.push({id:'',band:'na',icon:'/icons/dom-svgrepo-com.svg',
-        text:r.dom_nodes??'-',label:'DOM nodes',age:stale});
+      out.push({id:'',band:'na',text:'',label:'page size',age:stale,
+        lines:[{label:(r.request_count??'-')+' requests',title:'network requests per load'},
+          {img:'/icons/weight-svgrepo-com.svg',label:r.page_bytes?Math.round(r.page_bytes/1024)+'KB':'-',
+           title:'total transferred page weight'},
+          {img:'/icons/dom-svgrepo-com.svg',label:(((this.det||{}).samples||[]).slice(-1)[0]||{}).dom_nodes??r.dom_nodes??'-'+' nodes',
+           title:'DOM node count'}]});
       // protocol widget: 3-line status (h3 advertised / h2 negotiated / h1 baseline)
       const d=this.det||{};
       const proto=r.http_protocol||'';
@@ -73,7 +74,6 @@ document.addEventListener('alpine:init', () => {
       const pct=tot?Math.round(cacheN/tot*100):0;
       out.push({id:'cache',band:tot?(pct>=80?'good':pct>=50?'ok':'poor'):'na',
         text:tot?pct+'%':'-',label:'cacheable',age:stale});
-      out[7]={id:'',band:'na',text:smp.dom_nodes??r.dom_nodes??'-',label:'DOM nodes',age:stale};
       return out;
     },
     async j(u,o){ const r=await fetch(u,o); return r.json() },

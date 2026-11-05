@@ -88,8 +88,8 @@
         <div class="metric-val mono"><img class=comp-icon x-show="m.icon" x-bind:src="m.icon" alt=""><span x-text="m.text"></span></div>
         <template x-if="m.lines"><div class=proto-lines>
           <template x-for="ln in m.lines"><div class=mono>
-            <span x-show="ln.ok" class="wvf-icon icon-check ok" x-bind:title="ln.title"></span>
-            <span x-show="!ln.ok" class="wvf-icon icon-cross no" x-bind:title="ln.title"></span>
+            <span x-show="ln.ok===true" class="wvf-icon icon-check ok" x-bind:title="ln.title"></span>
+            <span x-show="ln.ok===false" class="wvf-icon icon-cross no" x-bind:title="ln.title"></span>
             <img class=comp-icon x-show="ln.img" x-bind:src="ln.img" x-bind:title="ln.title" alt="">
             <span x-text="ln.label" x-bind:title="ln.title"></span></div></template>
         </div></template>
