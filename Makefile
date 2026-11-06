@@ -18,11 +18,26 @@ jscheck:
 uiqa:
 	@sh scripts/uiqa.sh
 
+# webcheck: real linters on first-party assets — biome (js/css lint),
+# html-validate (html semantics); vendored files excluded by config
+webcheck:
+	@test ! -d node_modules/@biomejs || ./node_modules/.bin/biome lint internal/server/static/app.js internal/server/static/style.css
+	@test ! -d node_modules/html-validate || ./node_modules/.bin/html-validate internal/server/static/index.html
+	@echo "webcheck ok"
+
+mdcheck:
+	@test ! -d node_modules/markdownlint-cli2 || ./node_modules/.bin/markdownlint-cli2 "*.md" "docs/**/*.md" | tail -1 | grep -q "0 error" && echo "mdcheck ok"
+
+yamlcheck:
+	@for f in .golangci.yml .github/workflows/ci.yml; do \
+	  [ -f "$$f" ] && node -e "require('yaml').parse(require('fs').readFileSync('$$f','utf8'))" || exit 1; \
+	done && echo "yamlcheck ok"
+
 lint:
 	@command -v golangci-lint >/dev/null 2>&1 || { echo "golangci-lint not installed — skipped"; exit 0; }
 	@golangci-lint run ./...
 
-check: vet test lint build jscheck uiqa
+check: vet test lint build jscheck uiqa webcheck mdcheck yamlcheck
 	@echo "check ok"
 
 # smoke: load the dashboard headless, fail on console errors —

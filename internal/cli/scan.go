@@ -12,14 +12,11 @@ import (
 
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/chrome"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/deep"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/findings"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/jobs"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/psi"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/http3"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/httpcheck"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/measure"
+	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/pipeline"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/sitekey"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/store"
 	"github.com/spf13/cobra"
@@ -72,80 +69,26 @@ func scanCmd() *cobra.Command {
 			if res.BrowserVersion == "" {
 				res.BrowserVersion = ver
 			}
-			var engineErrs []measure.Finding
-			engErr := func(id, title string, err error) {
-				engineErrs = append(engineErrs, measure.Finding{ID: id,
-					Severity: measure.SevInfo, Category: "engine",
-					Title: title, Detail: err.Error()})
-				fmt.Fprintf(os.Stderr, "warn: %s: %v\n", title, err)
-			}
+			eng := &pipeline.EngineErrors{Warn: func(f string, a ...any) {
+				fmt.Fprintf(os.Stderr, f, a...)
+			}}
 			if findings.Want(only, "http") {
-				hc, herr := httpcheck.Probe(ctx, res.URL)
-				if herr != nil {
-					engErr("http_error", "http checks failed", herr)
-				}
-				if herr == nil {
-					var assets []httpcheck.Asset
-					if n := len(res.Samples); n > 0 {
-						for _, r := range res.Samples[n-1].Responses {
-							assets = append(assets, httpcheck.Asset{URL: r.URL, Status: r.Status, Headers: r.Headers})
-						}
-					}
-					hc.Cache = httpcheck.CacheVerdicts(assets)
-					res.HTTP = hc
-					res.HTTP3 = http3.Probe(ctx, res.URL, hc.AltSvc)
-				}
+				pipeline.HTTPChecks(ctx, res, eng, nil)
 			}
 			if deepMode && findings.Want(only, "deep") {
-				if a, frames, ff, aerr := deep.CollectAttribution(browser, res.URL); aerr == nil {
-					res.Attribution = a
-					res.Filmstrip = frames
-					res.FilmstripFormat = ff
-				} else {
-					engErr("attr_error", "attribution collect failed", aerr)
-				}
-				if bin, berr := deep.FindBin(); berr == nil {
-					if lh, lerr := deep.Lighthouse(ctx, bin, res.URL); lerr == nil {
-						res.Lighthouse = lh
-					} else {
-						engErr("lh_error", "lighthouse audit failed", lerr)
-					}
-				} else {
-					fmt.Fprintln(os.Stderr, "warn: lighthouse not on PATH — skipping audits")
-				}
+				pipeline.DeepChecks(ctx, browser, res, eng, nil)
 			}
-			res.Findings = findings.Filter(findings.Analyze(res), only)
-			res.Findings = append(res.Findings, findings.FromLighthouse(res.Lighthouse)...)
-			res.Findings = append(res.Findings, findings.FromAttribution(res.Attribution)...)
-			res.Findings = append(res.Findings, findings.FromPSI(res.PSI)...)
-			res.Findings = append(res.Findings, engineErrs...)
-			res.Findings = findings.Dedup(res.Findings)
+			pipeline.MergeFindings(res, only, eng)
 			if psiMode {
-				if r, perr := psi.Fetch(ctx, res.URL, cfg.PSIKey); perr == nil {
-					res.PSI = r
-				} else {
-					fmt.Fprintf(os.Stderr, "warn: psi: %v\n", perr)
-				}
+				pipeline.PSICheck(ctx, res, cfg.PSIKey, eng)
 			}
 			if err := persist(ctx, cfg, res, started); err != nil {
 				fmt.Fprintf(os.Stderr, "warn: store run: %v\n", err)
 			}
-			if asJSON {
-				enc := json.NewEncoder(os.Stdout)
-				enc.SetIndent("", "  ")
-				return enc.Encode(res)
-			}
-			printSummary(res)
-			if htmlOut != "" {
-				if err := writeHTMLReport(htmlOut, res); err != nil {
-					return err
-				}
-				fmt.Fprintf(os.Stderr, "report: %s\n", htmlOut)
-			}
-			return nil
+			return emitResult(res, asJSON, htmlOut)
 		},
 	}
-	cmd.Flags().StringVar(&cfgPath, "config", "", "path to wvf.yml")
+	cmd.Flags().StringVar(&cfgPath, "config", "", cfgFlagHelp)
 	cmd.Flags().IntVar(&samples, "samples", 0, "loads per scan (default from config, 3)")
 	cmd.Flags().DurationVar(&timeout, "timeout", 0, "whole-scan deadline (default 90s)")
 	cmd.Flags().DurationVar(&settle, "settle", 1500*time.Millisecond, "post-load wait for late LCP/CLS")
@@ -155,6 +98,24 @@ func scanCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&psiMode, "psi", false, "also fetch PageSpeed Insights (public FQDNs only)")
 	cmd.Flags().StringVar(&onlyCSV, "only", "", "comma list to focus: lcp,cls,tbt,ttfb,fcp,http,deep — skips other checks")
 	return cmd
+}
+
+// emitResult writes the result as indented JSON, or the text summary
+// plus an optional self-contained HTML report.
+func emitResult(res *measure.Result, asJSON bool, htmlOut string) error {
+	if asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(res)
+	}
+	printSummary(res)
+	if htmlOut != "" {
+		if err := writeHTMLReport(htmlOut, res); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "report: %s\n", htmlOut)
+	}
+	return nil
 }
 
 func persist(ctx context.Context, cfg config.Config, res *measure.Result, started time.Time) error {

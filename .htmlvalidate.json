@@ -1,0 +1,12 @@
+{
+  "extends": ["html-validate:recommended"],
+  "rules": {
+    "doctype-style": ["error", {"style": "uppercase"}],
+    "attr-quotes": "off",
+    "no-inline-style": "off",
+    "element-required-attributes": "off",
+    "attribute-misuse": "off",
+    "wcag/h30": "off",
+    "wcag/h37": "off"
+  }
+}

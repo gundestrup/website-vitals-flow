@@ -23,8 +23,10 @@ var candidates = []string{
 	"/usr/bin/google-chrome",
 }
 
+const headlessShell = "chrome-headless-shell"
+
 var pathNames = []string{
-	"chrome-headless-shell", "headless-shell", "chromium",
+	headlessShell, "headless-shell", "chromium",
 	"chromium-browser", "google-chrome", "chrome",
 }
 
@@ -38,7 +40,7 @@ func Find(explicit string) (path, version string, err error) {
 		return explicit, probeVersion(explicit), nil
 	}
 	if home, herr := os.UserHomeDir(); herr == nil {
-		managed := filepath.Join(home, ".cache", "wvf", "chrome-headless-shell", "chrome-headless-shell")
+		managed := filepath.Join(home, ".cache", "wvf", headlessShell, headlessShell)
 		if _, statErr := os.Stat(managed); statErr == nil {
 			return managed, probeVersion(managed), nil
 		}

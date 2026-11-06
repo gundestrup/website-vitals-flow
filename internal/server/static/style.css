@@ -105,3 +105,28 @@ body { min-height: 100vh; background: var(--wvf-paper); color: var(--wvf-ink); }
 .wvf-icon.ok { color:#2e7d32 } .wvf-icon.no { color:#c62828 }
 
 .comp-icon { width:16px; height:16px; vertical-align:-2px; margin-right:.3em; }
+
+/* layout/util classes — replaces inline styles */
+.wvf-page      { max-width: 1120px; }
+.wvf-panel     { border: 1px solid var(--wvf-line); padding: .7em; }
+.mb-09         { margin-bottom: .9em; }
+.mt-1          { margin-top: 1em; }
+.mt-12         { margin-top: 1.2em; }
+.nowrap        { white-space: nowrap; }
+.tt-none       { text-transform: none; }
+.fs-72         { font-size: .72rem; }
+.fs-75         { font-size: .75rem; }
+.fs-78         { font-size: .78rem; }
+.fs-80         { font-size: .8rem; }
+.toolbar       { display: flex; gap: .6em; flex-wrap: wrap; align-items: center; }
+.toolbar-tight { display: flex; gap: .45em; flex-wrap: wrap; align-items: center; }
+.fld-url       { width: 280px; }
+.fld-sched     { width: 110px; }
+.fld-auto      { width: auto; }
+.job-meta      { float: right; display: flex; gap: .5em; align-items: center; }
+.job-status    { display: flex; align-items: center; gap: .5em; min-width: 220px; justify-content: flex-end; }
+.prog-sm       { width: 120px; margin: 0; }
+.shot-lbl      { padding: .4em .6em .2em; }
+.row-pad       { padding: .4em 0; }
+.row-pad-sm    { padding: .35em 0; }
+.find-detail   { font-size: .72rem; color: var(--wvf-muted); white-space: pre-line; padding-left: 1.2em; }

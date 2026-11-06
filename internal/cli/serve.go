@@ -49,7 +49,7 @@ func serveCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&cfgPath, "config", "", "path to wvf.yml")
+	cmd.Flags().StringVar(&cfgPath, "config", "", cfgFlagHelp)
 	cmd.Flags().DurationVar(&tick, "tick", 60*time.Second, "scheduler sweep interval")
 	return cmd
 }

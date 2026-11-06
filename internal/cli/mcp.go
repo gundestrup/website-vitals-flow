@@ -25,6 +25,6 @@ func mcpCmd() *cobra.Command {
 			return mcpserver.Serve(ctx0, st, cfg, os.Stdin, os.Stdout)
 		},
 	}
-	cmd.Flags().StringVar(&cfgPath, "config", "", "path to wvf.yml")
+	cmd.Flags().StringVar(&cfgPath, "config", "", cfgFlagHelp)
 	return cmd
 }

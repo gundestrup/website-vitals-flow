@@ -1,0 +1,13 @@
+{
+  "files": {
+    "includes": ["internal/server/static/app.js", "internal/server/static/style.css"]
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "complexity": { "noImportantStyles": "off" }
+    }
+  },
+  "javascript": { "linter": { "enabled": true } },
+  "css": { "linter": { "enabled": true } }
+}

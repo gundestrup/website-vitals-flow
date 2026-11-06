@@ -150,7 +150,7 @@ one point = one dot; alpine CSP build passes `node --check` and CSP
   run against the same Chrome port, `--output=json`,
   `--throttling-method=provided`; parse audits → findings in
   `detail_json`; subprocess deadline + kill. "Full audit" scan trigger
-  + optional slower per-site schedule.
+  - optional slower per-site schedule.
 - `internal/psi`: opt-in per site; public FQDNs only; stores CrUX
   field percentiles tagged `engine=psi`.
 - Artifacts: `Page.startScreencast` frames + `Tracing` → stored

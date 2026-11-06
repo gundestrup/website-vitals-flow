@@ -206,6 +206,7 @@ func Lighthouse(_ context.Context, bin, url string) (*LHReport, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	// #nosec G204 -- bin comes from FindBin (LookPath) or our own config.
+	// nosemgrep -- argv exec, no shell; url is a single argument
 	out, err := exec.CommandContext(ctx, bin, url,
 		"--output=json", "--quiet", "--only-categories=performance",
 		"--throttling-method=provided",
@@ -243,6 +244,22 @@ func Lighthouse(_ context.Context, bin, url string) (*LHReport, error) {
 // "url (~45KB)" / "selector" — capped at n. LHR items can be a
 // list OR a keyed object depending on the audit.
 func lhItems(raw json.RawMessage, n int) []string {
+	items := lhItemList(raw)
+	var out []string
+	for _, it := range items {
+		if len(out) >= n {
+			break
+		}
+		if text := lhItemText(it); text != "" {
+			out = append(out, text)
+		}
+	}
+	return out
+}
+
+// lhItemList decodes details.items — a list OR a keyed object
+// depending on the audit — into a flat item slice.
+func lhItemList(raw json.RawMessage) []map[string]any {
 	var items []map[string]any
 	if err := json.Unmarshal(raw, &items); err != nil {
 		var keyed map[string]map[string]any
@@ -253,30 +270,29 @@ func lhItems(raw json.RawMessage, n int) []string {
 			items = append(items, v)
 		}
 	}
-	var out []string
-	for _, it := range items {
-		if len(out) >= n {
-			break
+	return items
+}
+
+// lhItemText renders one item as "url (~45KB)" / "selector (~120ms)" —
+// empty when the item carries neither url nor node.selector.
+func lhItemText(it map[string]any) string {
+	var text string
+	if u, ok := it["url"].(string); ok && u != "" {
+		text = shortURL(u)
+	} else if node, ok := it["node"].(map[string]any); ok {
+		if sel, ok := node["selector"].(string); ok {
+			text = sel
 		}
-		var text string
-		if u, ok := it["url"].(string); ok && u != "" {
-			text = shortURL(u)
-		} else if node, ok := it["node"].(map[string]any); ok {
-			if sel, ok := node["selector"].(string); ok {
-				text = sel
-			}
-		}
-		if text == "" {
-			continue
-		}
-		if wb, ok := it["wastedBytes"].(float64); ok && wb > 1024 {
-			text += fmt.Sprintf(" (~%.0fKB)", wb/1024)
-		} else if wm, ok := it["wastedMs"].(float64); ok && wm > 1 {
-			text += fmt.Sprintf(" (~%.0fms)", wm)
-		}
-		out = append(out, text)
 	}
-	return out
+	if text == "" {
+		return ""
+	}
+	if wb, ok := it["wastedBytes"].(float64); ok && wb > 1024 {
+		text += fmt.Sprintf(" (~%.0fKB)", wb/1024)
+	} else if wm, ok := it["wastedMs"].(float64); ok && wm > 1 {
+		text += fmt.Sprintf(" (~%.0fms)", wm)
+	}
+	return text
 }
 
 func shortURL(u string) string {
@@ -322,6 +338,7 @@ func AvifEncode(ctx context.Context, bin string, in []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("avifenc: %w (%s)", err, out)
 	}
+	// nosemgrep -- argv exec, no shell
 	// #nosec G304 -- dst is a fixed name inside our own MkdirTemp dir.
 	return os.ReadFile(dst)
 }
