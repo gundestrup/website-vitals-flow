@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os/exec"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/chrome"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/deep"
+	"github.com/gundestrup/website-vitals-flow/internal/chrome"
+	"github.com/gundestrup/website-vitals-flow/internal/config"
+	"github.com/gundestrup/website-vitals-flow/internal/deep"
 	"github.com/spf13/cobra"
 )
 

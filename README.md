@@ -34,8 +34,16 @@ output, run history. Reports live at `/site/{key}/report/{id}`;
 ## API (IDE/agent-callable)
 
 Full reference: [docs/api.md](docs/api.md) — REST endpoints, VS Code
-tasks.json setup, and `wvf mcp`: an MCP stdio server exposing
-scan/history/run/prune as native agent tools.
+tasks.json setup, and MCP tools (scan/history/run/prune/jobs) over
+two transports:
+
+    # preferred — through the running server (shared job queue)
+    {"mcpServers": {"wvf": {"url": "http://127.0.0.1:8420/mcp"}}}
+
+    # stdio fallback — works without a running server
+    {"mcpServers": {"wvf": {
+      "command": "bin/wvf", "args": ["mcp"],
+      "env": {"WVF_STATE_DB": "state.db"}}}}
 
     POST /api/scan      {"url": "...", "wait": 90, "deep": true}  # sync or async
     GET  /api/jobs/{id}                              # poll → run_id
@@ -48,6 +56,15 @@ scan/history/run/prune as native agent tools.
 `sites add|list|remove` [--schedule D] [--deep] [--only set] · `report <id>` · `prune`
 `compare <site>` `[--base <run-id>]` `[--thresh %]` — baseline-vs-latest metric diff
 `serve` · `doctor` · `mcp` (stdio MCP server for IDEs/agents)
+
+### Menubar + extras
+
+- `scripts/swiftbar/` — SwiftBar plugin (`wvf.30s.sh`): menubar status,
+  running jobs, scan-all, start/stop. `install.sh`/`uninstall.sh`
+  (self-verifying), `test.sh` lifecycle tests in `make check`
+- `POST /api/scan-all` — scan-all / deep-scan dashboard buttons target
+  every site with a schedule
+- theme toggle (auto/light/dark, persisted) + en/da UI strings
 
 ### Badges & screenshots
 

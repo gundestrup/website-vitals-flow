@@ -18,7 +18,7 @@ import (
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/chrome"
+	"github.com/gundestrup/website-vitals-flow/internal/chrome"
 )
 
 func ptr(b bool) *bool { return &b }

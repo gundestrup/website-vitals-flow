@@ -1,6 +1,6 @@
 document.addEventListener('alpine:init', () => {
   Alpine.data('dash', () => ({
-    sites: [], last: {}, jobs: [], runs: [], sel: '', busy: false, chart: null, findings: [], consoleLog: [],
+    sites: [], last: {}, jobs: [], runs: [], sel: '', busy: false, chart: null, findings: [], consoleLog: [], pages: [], page: '', lang: localStorage.getItem('wvf-lang')||'en', theme: '',
     addUrl:'', addSched:'', scanType:'', onlySel:[],
     onlyOpts:['ttfb','fcp','lcp','cls','tbt','inp','vitals','http','h3','images','js','css','deep','psi'],
     fmt(v){ return v==null?'-':Math.round(v) },
@@ -82,7 +82,7 @@ document.addEventListener('alpine:init', () => {
         lines:Object.keys(SIGT).map(k=>({ok:!!sig[k],label:k,title:SIGT[k]}))});
       const con=smp.console||[];
       const nErr=con.filter(c=>c.kind!=='warn').length, nWarn=con.length-nErr;
-      out.push({id:'console',
+      out.push({id:'',
         band:con.length?(nErr?'poor':'ok'):'good',
         text:con.length?(nErr?`${nErr} err`:`${nWarn} warn`):'clean',
         label:'console',title:'console messages captured during page load — click Console section below for all',age:stale,
@@ -90,6 +90,22 @@ document.addEventListener('alpine:init', () => {
           label:(`${c.kind}: ${c.text}`).slice(0,34),title:c.text}))});
       return out;
     },
+    T:{
+      en:{monitored:'Monitored sites',recent:'Recent scans',adhoc:'(ad-hoc — not scheduled)',
+        scanall:'scan all',deepscan:'deep scan',addsite:'add site',scanurl:'scan url',
+        add:'add',scan:'scan',edit:'edit',prune:'prune',all:'← all sites',
+        shot:'last scan screenshot',trends:'Trends',findings:'Findings',console:'Console',
+        runs:'Runs',jobs:'jobs running',url_ph:'https://site or localhost:3000',sched_ph:'schedule 30m'},
+      da:{monitored:'Overvågede sites',recent:'Seneste scanninger',adhoc:'(ad-hoc — ikke planlagt)',
+        scanall:'scan alle',deepscan:'dyb scan',addsite:'tilføj site',scanurl:'scan url',
+        add:'tilføj',scan:'scan',edit:'ret',prune:'rens',all:'← alle sites',
+        shot:'seneste skærmbillede',trends:'Tendenser',findings:'Fund',console:'Konsol',
+        runs:'Kørsler',jobs:'jobs kører',url_ph:'https://site eller localhost:3000',sched_ph:'planlæg 30m'},
+    },
+    t(k){ return (this.T[this.lang]&&this.T[this.lang][k])||this.T.en[k]||k },
+    toggleLang(){ this.lang=this.lang==='en'?'da':'en'; localStorage.setItem('wvf-lang',this.lang) },
+    themeIcon(){ return {auto:'◐ auto',light:'☀ light',dark:'☾ dark'}[wvfTheme.get()] },
+    cycleTheme(){ return wvfTheme.cycle() },
     async j(u,o){ const r=await fetch(u,o); return r.json() },
     async load(){
       this.sites = await this.j('/api/sites') || [];
@@ -99,15 +115,28 @@ document.addEventListener('alpine:init', () => {
       if(h && !this.sel){ this.sel=h; this.open(h); }
       this.jobs = await this.j('/api/jobs') || [];
       for (const s of this.sites){
-        const rr = await this.j(`/api/sites/${s.key}/runs`);
+        const rr = await this.j(`/api/sites/${encodeURIComponent(s.key)}/runs`);
         // last successful run — failed ticks carry null metrics
         if (rr?.length) this.last[s.key]=rr.find(r=>r.status==='ok')||rr[0];
       }
-      // async refresh: fast poll while a job is queued/running
+      // SSE pushes jobs live; poll only refreshes site/run data
+      if(!this._sse){
+        this._sse=new EventSource('/api/jobs/stream');
+        this._sse.onmessage=(e)=>{
+          const next=JSON.parse(e.data);
+          const done=(next||[]).filter(j=>j.state==='done'||j.state==='failed')
+            .map(j=>j.id);
+          const wasDone=this.jobs.filter(j=>j.state==='done'||j.state==='failed')
+            .map(j=>j.id);
+          this.jobs=next||[];
+          if(done.some(i=>!wasDone.includes(i))){ this.load();
+            if(this.sel) this.open(this.sel); }
+        };
+      }
       const active=this.jobs.some(j=>j.state==='queued'||j.state==='running');
       clearTimeout(this._poll);
       this._poll=setTimeout(()=>{ this.load();
-        if(this.sel) this.open(this.sel); }, active?3000:15000);
+        if(this.sel) this.open(this.sel); }, active?5000:15000);
     },
     back(){
       this.sel=''; this.det=null; this.findings=[]; this.consoleLog=[]; this.runs=[];
@@ -115,7 +144,7 @@ document.addEventListener('alpine:init', () => {
     },
     async open(key){
       this.sel=key; history.pushState({},'', `/site/${encodeURIComponent(key)}`);
-      this.runs=(await this.j(`/api/sites/${key}/runs`))||[];
+      this.runs=(await this.j(`/api/sites/${encodeURIComponent(key)}/runs`))||[];
       // only re-render when the newest run actually changed — a poll
       // with no new data must not tear down and rebuild the charts
       const newest=this.runs[0];
@@ -126,6 +155,7 @@ document.addEventListener('alpine:init', () => {
              const seen=new Set();
              const smpl=(this.det.samples||[]); const ls=smpl[smpl.length-1];
              this.consoleLog=(ls?.console)||[];
+             this.loadPages();
              this.findings=(this.det.findings||[]).filter(f=>{
                const k=`${f.id}|${f.title}|${f.detail||''}`;
                if(seen.has(k)) return false; seen.add(k); return true});
@@ -200,6 +230,20 @@ document.addEventListener('alpine:init', () => {
       return out;
     },
     siteByKey(k){ return this.sites.find(x=>x.key===k)||{key:k} },
+    async scanAll(deep){
+      this.busy=true;
+      await this.j('/api/scan-all',{method:'POST',body:JSON.stringify({deep})});
+      setTimeout(async()=>{ this.busy=false; await this.load(); },2500);
+    },
+    async loadPages(){
+      this.pages = await this.j('/api/sites/'+encodeURIComponent(this.sel)+'/pages') || ['/'];
+    },
+    async scanPage(){
+      if(!this.page) return;
+      this.busy=true;
+      const r=await this.j('/api/scan-now',{method:'POST',body:JSON.stringify({key:this.sel,page:this.page})});
+      this.jobWait(r);
+    },
     async scanSite(s){
       this.busy=true;
       const only=this.scanType==='custom'?this.onlySel.join(','):(this.scanType==='deep'?'':this.scanType);

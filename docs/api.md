@@ -64,7 +64,31 @@ at `http://127.0.0.1:8420` covers that today.
 
 ## MCP server (native agent tools)
 
-`wvf mcp` speaks MCP over stdio — point any MCP client at the binary:
+Two transports, same tool surface:
+
+### `POST /mcp` — HTTP transport
+
+When `wvf serve` is running, the same MCP tools are exposed over the
+Streamable-HTTP transport — point the client at the URL instead of
+spawning a process:
+
+```json
+{"mcpServers": {"wvf": {"url": "http://127.0.0.1:8420/mcp"}}}
+```
+
+One JSON-RPC 2.0 request per POST (`initialize`, `tools/list`,
+`tools/call`; `notifications/*` get `202`). Scans enqueue through the
+daemon's job runner — single-slot, progress visible on the dashboard —
+then the call waits (≤300s, same cap as `wait`) and returns the same
+payload as stdio. On timeout/failure it reports
+`{"site", "job", "state"}` so the agent can poll via the `jobs` tool.
+Note: `samples` is honored on stdio only — the job queue carries
+url/deep/only, so HTTP scans use the server's configured `samples`.
+
+### `wvf mcp` — stdio transport
+
+Prefer HTTP when the daemon is already up; otherwise spawn the binary
+as a stdio MCP process:
 
 ```json
 {"mcpServers": {"wvf": {
@@ -75,8 +99,8 @@ at `http://127.0.0.1:8420` covers that today.
 Tools: `scan {url, deep, only, samples}` (synchronous, returns metrics +
 the unified **findings** list — our checks + `lh_*` + `attr_*` + `psi_*`
 run_id), `sites`, `history {site, limit}`, `run {id}` (full detail incl.
-per-request timing + findings), `prune`. Works in Devin, Cursor, Claude
-Desktop — no per-IDE code needed.
+per-request timing + findings), `jobs {limit}`, `prune`. Works in Devin,
+Cursor, Claude Desktop — no per-IDE code needed.
 
 **AI IDEs / agents** that don't speak MCP: give the agent this file —
 the REST API is directly callable via its terminal/HTTP tools.

@@ -11,7 +11,7 @@ import (
 	_ "modernc.org/sqlite" // registers the "sqlite" database/sql driver
 )
 
-const schemaVersion = 6
+const schemaVersion = 7
 
 const schemaV1 = `
 CREATE TABLE IF NOT EXISTS sites (
@@ -117,6 +117,12 @@ func (s *Store) migrate(ctx context.Context) error {
 		if _, err := s.db.ExecContext(ctx,
 			`ALTER TABLE jobs ADD COLUMN "only" TEXT NOT NULL DEFAULT ''`); err != nil {
 			return fmt.Errorf("migrate v6 jobs.only: %w", err)
+		}
+	}
+	if v < 7 {
+		if _, err := s.db.ExecContext(ctx,
+			`ALTER TABLE jobs ADD COLUMN page TEXT NOT NULL DEFAULT ''`); err != nil {
+			return err
 		}
 	}
 	if _, err := s.db.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version=%d", schemaVersion)); err != nil {

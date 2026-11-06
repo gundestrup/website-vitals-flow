@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/deep"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/measure"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/psi"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/score"
+	"github.com/gundestrup/website-vitals-flow/internal/deep"
+	"github.com/gundestrup/website-vitals-flow/internal/measure"
+	"github.com/gundestrup/website-vitals-flow/internal/psi"
+	"github.com/gundestrup/website-vitals-flow/internal/score"
 )
 
 // Finding is an alias to the measure type — findings produces them,

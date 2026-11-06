@@ -31,6 +31,7 @@ html[data-theme="dark"] {
   --bulma-primary-invert-l: 8%;
   --bulma-link-l: 62%;
   --bulma-link-rgb: 136, 171, 208;
+  --wvf-bg-soft: #1e2422;
 }
 [x-cloak] { display: none !important; }
 body { min-height: 100vh; background: var(--wvf-paper); color: var(--wvf-ink); }
@@ -130,3 +131,9 @@ body { min-height: 100vh; background: var(--wvf-paper); color: var(--wvf-ink); }
 .row-pad       { padding: .4em 0; }
 .row-pad-sm    { padding: .35em 0; }
 .find-detail   { font-size: .72rem; color: var(--wvf-muted); white-space: pre-line; padding-left: 1.2em; }
+.scan-all { float: right; display: flex; gap: .4em; font-size: .7rem; }
+.meta-line     { font-size: .78rem; color: var(--wvf-muted); }
+.serif         { font-family: var(--wvf-serif); }
+.mw-340        { max-width: 340px; }
+.detail-pre    { background: var(--wvf-bg-soft); padding: 1em; overflow: auto; font-size: .75em; border-radius: 6px; }
+

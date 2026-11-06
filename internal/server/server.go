@@ -2,24 +2,32 @@
 package server
 
 import (
+	"compress/gzip"
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
 	"html"
+	"html/template"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"time"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/jobs"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/score"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/sitekey"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/store"
+	"github.com/andybalholm/brotli"
+	"github.com/gundestrup/website-vitals-flow/internal/config"
+	"github.com/gundestrup/website-vitals-flow/internal/jobs"
+	"github.com/gundestrup/website-vitals-flow/internal/mcpserver"
+	"github.com/gundestrup/website-vitals-flow/internal/measure"
+	"github.com/gundestrup/website-vitals-flow/internal/score"
+	"github.com/gundestrup/website-vitals-flow/internal/sitekey"
+	"github.com/gundestrup/website-vitals-flow/internal/store"
 )
 
 //go:embed static
@@ -36,31 +44,98 @@ type Server struct {
 	st     *store.Store
 	cfg    config.Config
 	runner *jobs.Runner
+	mcpd   *mcpserver.Dispatcher
 }
 
 // New builds the handler. WVF_DEV_STATIC=<dir> serves assets from disk.
+// gzip+br compresses responses when the client asks — the dashboard's
+// own scan flagged "brotli not negotiated" on its static assets.
+type encWriter struct {
+	http.ResponseWriter
+	w io.Writer
+}
+
+func (e encWriter) Write(b []byte) (int, error) { return e.w.Write(b) }
+
+// Flush keeps http.Flusher through the wrap so SSE handlers don't 503.
+func (e encWriter) Flush() {
+	if f, ok := e.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func gzipMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ae := r.Header.Get("Accept-Encoding")
+		// never compress SSE — gzip/br buffer breaks real-time flush
+		if r.Header.Get("Accept") == "text/event-stream" {
+			h.ServeHTTP(w, r)
+			return
+		}
+		var wtr io.WriteCloser
+		switch {
+		case strings.Contains(ae, "br"):
+			w.Header().Set("Content-Encoding", "br")
+			wtr = brotli.NewWriter(w)
+		case strings.Contains(ae, "gzip"):
+			w.Header().Set("Content-Encoding", "gzip")
+			wtr = gzip.NewWriter(w)
+		default:
+			h.ServeHTTP(w, r)
+			return
+		}
+		defer func() { _ = wtr.Close() }()
+		h.ServeHTTP(encWriter{w, wtr}, r)
+	})
+}
+
+// New builds the dashboard+API handler with gzip + headers middleware.
 func New(st *store.Store, cfg config.Config, r *jobs.Runner) http.Handler {
 	s := &Server{st: st, cfg: cfg, runner: r}
+	// /mcp shares the mcpserver dispatch (same tools as `wvf mcp` stdio)
+	// but the scan tool goes through the runner — see scanViaRunner.
+	s.mcpd = mcpserver.New(st, s.scanViaRunner)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/sites", s.sites)
 	mux.HandleFunc("GET /api/sites/{key}/runs", s.runs)
 	mux.HandleFunc("GET /api/runs/{id}", s.run)
 	mux.HandleFunc("GET /api/jobs", s.jobs)
+	mux.HandleFunc("GET /api/jobs/stream", s.jobsStream)
 	mux.HandleFunc("GET /api/jobs/{id}", s.job)
 	mux.HandleFunc("GET /badge.svg", s.badge)
 	// SPA route: /site/<key> serves the same index (':' is legal in
 	// a path segment, so /site/localhost:8473 works directly)
 	mux.HandleFunc("GET /site/{key}", s.index)
+	mux.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set(hdrContentType, "text/plain")
+		_, _ = w.Write([]byte("User-agent: *\nAllow: /\n"))
+	})
+	mux.HandleFunc("GET /sitemap.xml", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set(hdrContentType, "application/xml")
+		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>/</loc></url></urlset>`))
+	})
+	mux.HandleFunc("GET /site.webmanifest", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set(hdrContentType, "application/manifest+json")
+		_, _ = w.Write([]byte(`{"name":"website-vitals-flow","display":"standalone","icons":[{"src":"/favicon.ico","type":"image/svg+xml"}]}`))
+	})
+	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(hdrContentType, "image/svg+xml")
+		http.ServeFileFS(w, r, staticFS, "static/icons/check.svg")
+	})
 	mux.HandleFunc("GET /site/{key}/report/{id}", s.report)
 	mux.HandleFunc("POST /api/scan", s.scan)
 	mux.HandleFunc("POST /api/scan-now", s.scanNow)
+	mux.HandleFunc("POST /api/scan-all", s.scanAll)
+	mux.HandleFunc("GET /api/sites/{key}/pages", s.pages)
 	mux.HandleFunc("POST /api/sites", s.siteAdd)
 	mux.HandleFunc("PATCH /api/sites/{key}", s.siteEdit)
 	mux.HandleFunc("DELETE /api/sites/{key}", s.siteDelete)
 	mux.HandleFunc("POST /api/prune", s.prune)
+	mux.HandleFunc("POST /mcp", s.mcp)
 	mux.HandleFunc("GET /report/{id}", s.report)
 	mux.Handle("GET /", s.static())
-	return headers(mux)
+	return headers(gzipMiddleware(mux))
 }
 
 func (s *Server) index(w http.ResponseWriter, _ *http.Request) {
@@ -119,11 +194,42 @@ func (s *Server) jobs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, list, err)
 }
 
+// jobsStream pushes the jobs list over SSE whenever it changes — h1.1
+// async without polling (h2 needs TLS; SSE doesn't).
+func (s *Server) jobsStream(w http.ResponseWriter, r *http.Request) {
+	fl, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "no SSE", http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	tick := time.NewTicker(time.Second)
+	defer tick.Stop()
+	var last string
+	for {
+		list, err := s.st.RecentJobs(r.Context(), 20)
+		if err == nil {
+			if b, err := json.Marshal(list); err == nil && string(b) != last {
+				last = string(b)
+				_, _ = fmt.Fprintf(w, "data: %s\n\n", b)
+				fl.Flush()
+			}
+		}
+		select {
+		case <-r.Context().Done():
+			return
+		case <-tick.C:
+		}
+	}
+}
+
 func (s *Server) scanNow(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Key  string `json:"key"`
 		Deep bool   `json:"deep"`
 		Only string `json:"only"`
+		Page string `json:"page"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, nil, err)
@@ -139,8 +245,70 @@ func (s *Server) scanNow(w http.ResponseWriter, r *http.Request) {
 	if only == "" {
 		only = site.Only
 	}
-	id, err := s.runner.Enqueue(r.Context(), site.ID, "scan", body.Deep || site.Deep, only)
+	id, err := s.runner.Enqueue(r.Context(), site.ID, "scan", body.Deep || site.Deep, only, body.Page)
 	writeJSON(w, map[string]int64{"job": id}, err)
+}
+
+// pages returns the site's sitemap-derived paths for page scanning.
+func (s *Server) pages(w http.ResponseWriter, r *http.Request) {
+	site, err := s.st.SiteByKey(r.Context(), r.PathValue("key"))
+	if err != nil {
+		writeJSON(w, nil, err)
+		return
+	}
+	base := strings.TrimSuffix(site.URL, "/")
+	// #nosec G704 -- URL is operator-stored site config; wvf is a scanner.
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, base+"/sitemap.xml", nil)
+	if err != nil {
+		writeJSON(w, nil, err)
+		return
+	}
+	resp, err := http.DefaultClient.Do(req) // #nosec G704 -- same: operator-stored URL
+	if err != nil {
+		writeJSON(w, []string{"/"}, nil)
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	var urls []string
+	for _, m := range locRe.FindAllStringSubmatch(string(b), -1) {
+		u, err := url.Parse(m[1])
+		if err != nil || u.Path == "" || u.Path == "/" {
+			continue
+		}
+		urls = append(urls, strings.TrimPrefix(u.Path, "/"))
+	}
+	if len(urls) == 0 {
+		urls = []string{"/"}
+	}
+	writeJSON(w, urls, nil)
+}
+
+var locRe = regexp.MustCompile(`<loc>([^<]+)</loc>`)
+
+// scanAll enqueues a scan for every monitored site (schedule set).
+// deep=true forces deep mode; deep=false uses each site's own flag.
+func (s *Server) scanAll(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Deep bool `json:"deep"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body) // empty body ok
+	sites, err := s.st.ListSites(r.Context())
+	if err != nil {
+		writeJSON(w, nil, err)
+		return
+	}
+	n := 0
+	for _, site := range sites {
+		if site.Schedule == "" {
+			continue
+		}
+		if _, err := s.runner.Enqueue(r.Context(), site.ID, "scan",
+			body.Deep || site.Deep, site.Only); err == nil {
+			n++
+		}
+	}
+	writeJSON(w, map[string]int{"enqueued": n}, nil)
 }
 
 func fmtSscanf(s string, id *int64) (int, error) {
@@ -342,6 +510,99 @@ func (s *Server) pollJob(w http.ResponseWriter, r *http.Request, jobID int64, re
 	return true
 }
 
+// mcpWait is the scan-tool wait cap — same 300s as /api/scan's wait.
+const mcpWait = 300 * time.Second
+
+// mcp serves MCP over HTTP: one JSON-RPC 2.0 request per POST, shared
+// dispatch with `wvf mcp` stdio (initialize, tools/list, tools/call).
+// Notifications get 202 — the JSON-RPC spec expects no response.
+func (s *Server) mcp(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+	if err != nil {
+		writeJSON(w, nil, err)
+		return
+	}
+	out, ok := s.mcpd.Dispatch(r.Context(), body)
+	if !ok {
+		w.WriteHeader(http.StatusAccepted)
+		return
+	}
+	w.Header().Set(hdrContentType, "application/json")
+	_, _ = w.Write(out)
+}
+
+// scanViaRunner is the /mcp "scan" tool impl — the one place the shared
+// dispatch can't be fully transport-agnostic: stdio runs RunSiteScan
+// inline, but here the work must go through the serve Runner so scans
+// stay single-slot and surface on the dashboard. Enqueues, waits like
+// /api/scan's waitJob (500ms poll, ≤300s), then shapes the same result
+// from the persisted run. The `samples` arg can't ride the job queue
+// (jobs carry only/deep, not samples) — cfg.Samples applies.
+func (s *Server) scanViaRunner(ctx context.Context, a mcpserver.ScanArgs) (map[string]any, error) {
+	key, canon, err := sitekey.From(a.URL)
+	if err != nil {
+		return nil, err
+	}
+	site, err := s.st.GetOrCreateSite(ctx, key, canon,
+		s.cfg.KeepLast, s.cfg.MaxAgeDays)
+	if err != nil {
+		return nil, err
+	}
+	jobID, err := s.runner.Enqueue(ctx, site.ID, "scan", a.Deep || site.Deep, a.Only)
+	if err != nil {
+		return nil, err
+	}
+	j, runID, err := s.awaitJob(ctx, jobID)
+	if err != nil {
+		return nil, err
+	}
+	if j.State == "failed" {
+		return nil, fmt.Errorf("scan failed: %s", j.Detail)
+	}
+	if j.State != "done" || runID == 0 {
+		// still queued/running at the wait cap (or the client left) —
+		// report the job so the agent can poll via the jobs tool
+		return map[string]any{"site": site.Key, "job": jobID, "state": j.State}, nil
+	}
+	run, err := s.st.RunByID(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	var res measure.Result
+	if err := json.Unmarshal([]byte(run.DetailJSON), &res); err == nil &&
+		len(res.Samples) > 0 {
+		return mcpserver.ScanPayload(site.Key, runID, &res), nil
+	}
+	return map[string]any{ // degraded: headline columns only
+		"site": site.Key, "run_id": runID,
+		"ttfb_ms": run.TTFBms, "fcp_ms": run.FCPms, "lcp_ms": run.LCPms,
+		"cls": run.CLS, "tbt_ms": run.TBTms, "requests": run.RequestCount,
+	}, nil
+}
+
+// awaitJob polls every 500ms until the job reaches a terminal state,
+// ctx ends, or mcpWait elapses — the waitJob pattern minus the writer.
+// Returns the last-seen job, so a non-terminal state means "still
+// going" rather than an error.
+func (s *Server) awaitJob(ctx context.Context, jobID int64) (*store.Job, int64, error) {
+	deadline := time.Now().Add(mcpWait)
+	for {
+		j, runID, err := s.st.JobByID(ctx, jobID)
+		if err != nil {
+			return nil, 0, err
+		}
+		if j.State == "done" || j.State == "failed" ||
+			time.Now().After(deadline) {
+			return j, runID, nil
+		}
+		select {
+		case <-ctx.Done():
+			return j, runID, nil
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+}
+
 // job returns one job + its run id for polling clients.
 func (s *Server) job(w http.ResponseWriter, r *http.Request) {
 	var id int64
@@ -489,13 +750,22 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request) {
 	_ = json.Unmarshal([]byte(run.DetailJSON), &det)
 
 	var b strings.Builder
-	reportHeader(&b, site, run, id)
+	reportHeader(&b, site, run, id, det)
 	reportMetrics(&b, run)
 	reportScreenshot(&b, det)
 	reportFindings(&b, det)
 	reportConsole(&b, det)
 	reportDetail(&b, det)
-	b.WriteString(`</section>`)
+	t, err := template.New("shell").ParseFS(staticFS, "static/layout.tmpl")
+	if err == nil {
+		var out strings.Builder
+		err = t.ExecuteTemplate(&out, "shell", map[string]any{
+			"Title": "wvf run report", "Eyebrow": "run report",
+			"Body": template.HTML(b.String())}) // #nosec G203 -- leaf values html.EscapeString'd
+		if err == nil {
+			b = out
+		}
+	}
 	w.Header().Set(hdrContentType, ctHTML)
 	_, _ = w.Write([]byte(b.String())) // nosemgrep -- interpolated values html.EscapeString'd
 }
@@ -550,18 +820,21 @@ func lastSample(det map[string]any) (map[string]any, bool) {
 }
 
 // reportHeader writes the doctype, backlink, title, and meta line.
-func reportHeader(b *strings.Builder, site *store.Site, run *store.Run, id int64) {
-	b.WriteString(`<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">`)
-	b.WriteString(`<link rel=stylesheet href=/style.css><title>wvf run report</title><section class=section>`)
-	b.WriteString(`<p class=eyebrow>website-vitals-flow · run report</p>`)
+func reportHeader(b *strings.Builder, site *store.Site, run *store.Run, id int64, det map[string]any) {
+
 	key := ""
 	if site != nil {
 		key = site.Key
 	}
-	fmt.Fprintf(b, `<a href="/site/%s" class=mono style="font-size:.8rem">&larr; %s</a>`,
+	fmt.Fprintf(b, `<a href="/site/%s" class="mono fs-80">&larr; %s</a>`,
 		url.PathEscape(key), html.EscapeString(key))
-	fmt.Fprintf(b, `<h1 class="title is-4" style="font-family:var(--wvf-serif)">Run %d</h1>`, id)
-	fmt.Fprintf(b, `<p class=mono style="font-size:.78rem;color:var(--wvf-muted)">%s &middot; engine %s &middot; status %s &middot; %s</p>`,
+	fmt.Fprintf(b, `<h1 class="title is-4 serif">Run %d</h1>`, id)
+	if u, ok := det["url"].(string); ok {
+		if pu, perr := url.Parse(u); perr == nil && pu.Path != "" && pu.Path != "/" {
+			fmt.Fprintf(b, `<p class="mono meta-line">page %s</p>`, html.EscapeString(strings.TrimPrefix(pu.Path, "/")))
+		}
+	}
+	fmt.Fprintf(b, `<p class="mono meta-line">%s &middot; engine %s &middot; status %s &middot; %s</p>`,
 		run.StartedAt.Format("2006-01-02 15:04"), run.Engine, run.Status, ago(run.StartedAt))
 }
 
@@ -582,7 +855,7 @@ func reportMetrics(b *strings.Builder, run *store.Run) {
 func reportScreenshot(b *strings.Builder, det map[string]any) {
 	if m, ok := lastSample(det); ok {
 		if shot, ok := m["screenshot"].(string); ok && shot != "" {
-			fmt.Fprintf(b, `<div class=shot-card style="max-width:340px"><div class=metric-lbl style="padding:.4em .6em .2em">page after load</div><img src="data:image/jpeg;base64,%s"></div>`, shot)
+			fmt.Fprintf(b, `<div class="shot-card mw-340"><div class="metric-lbl shot-lbl">page after load</div><img src="data:image/jpeg;base64,%s"></div>`, shot)
 		}
 	}
 }
@@ -602,7 +875,7 @@ func reportFindings(b *strings.Builder, det map[string]any) {
 			fmt.Fprintf(b, ` <a href="%v" target=_blank rel=noopener>&rarr; guide</a>`, html.EscapeString(fmt.Sprint(m["link"])))
 		}
 		if d, ok := m["detail"].(string); ok && d != "" {
-			fmt.Fprintf(b, `<div class=mono style="font-size:.72rem;color:var(--wvf-muted);white-space:pre-line;padding-left:1.2em">%v</div>`, html.EscapeString(d))
+			fmt.Fprintf(b, `<div class="mono find-detail">%v</div>`, html.EscapeString(d))
 		}
 		b.WriteString(`</div>`)
 	}
@@ -626,7 +899,7 @@ func reportConsole(b *strings.Builder, det map[string]any) {
 		if c["kind"] == "warn" {
 			cls = "sev-warn"
 		}
-		fmt.Fprintf(b, `<div class=finding><b class="%v">[%v]</b> <span class=mono style="font-size:.78rem">%v</span></div>`,
+		fmt.Fprintf(b, `<div class=finding><b class="%v">[%v]</b> <span class="mono fs-78">%v</span></div>`,
 			cls, c["kind"], html.EscapeString(fmt.Sprint(c["text"])))
 	}
 }

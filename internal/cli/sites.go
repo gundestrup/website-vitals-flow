@@ -6,9 +6,9 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/sitekey"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/store"
+	"github.com/gundestrup/website-vitals-flow/internal/config"
+	"github.com/gundestrup/website-vitals-flow/internal/sitekey"
+	"github.com/gundestrup/website-vitals-flow/internal/store"
 	"github.com/spf13/cobra"
 )
 

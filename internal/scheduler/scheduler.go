@@ -6,8 +6,8 @@ import (
 	"database/sql"
 	"time"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/jobs"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/store"
+	"github.com/gundestrup/website-vitals-flow/internal/jobs"
+	"github.com/gundestrup/website-vitals-flow/internal/store"
 )
 
 // ParseInterval turns "30m"/"6h"/"daily" into a duration. Empty = never.

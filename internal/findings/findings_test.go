@@ -3,7 +3,7 @@ package findings
 import (
 	"testing"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/measure"
+	"github.com/gundestrup/website-vitals-flow/internal/measure"
 )
 
 // Regression: a scan with no http-check data must not panic —

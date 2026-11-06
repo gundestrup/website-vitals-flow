@@ -10,15 +10,15 @@ import (
 	"strings"
 	"time"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/chrome"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/findings"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/jobs"
+	"github.com/gundestrup/website-vitals-flow/internal/chrome"
+	"github.com/gundestrup/website-vitals-flow/internal/config"
+	"github.com/gundestrup/website-vitals-flow/internal/findings"
+	"github.com/gundestrup/website-vitals-flow/internal/jobs"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/measure"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/pipeline"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/sitekey"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/store"
+	"github.com/gundestrup/website-vitals-flow/internal/measure"
+	"github.com/gundestrup/website-vitals-flow/internal/pipeline"
+	"github.com/gundestrup/website-vitals-flow/internal/sitekey"
+	"github.com/gundestrup/website-vitals-flow/internal/store"
 	"github.com/spf13/cobra"
 )
 

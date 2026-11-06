@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/mcpserver"
+	"github.com/gundestrup/website-vitals-flow/internal/mcpserver"
 )
 
 func mcpCmd() *cobra.Command {

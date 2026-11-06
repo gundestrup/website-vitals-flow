@@ -1,5 +1,7 @@
-// Package mcpserver exposes wvf as MCP tools over stdio (newline-delimited
-// JSON-RPC 2.0) so MCP-capable IDEs/agents can drive scans natively.
+// Package mcpserver exposes wvf as MCP tools so MCP-capable IDEs/agents
+// can drive scans natively. Two transports share one Dispatcher: Serve
+// (newline-delimited JSON-RPC 2.0 over stdio) and the server's POST /mcp
+// endpoint — the only difference is the ScanFunc plugged in.
 package mcpserver
 
 import (
@@ -8,14 +10,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
-	"time"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/jobs"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/sitekey"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/store"
+	"github.com/gundestrup/website-vitals-flow/internal/config"
+	"github.com/gundestrup/website-vitals-flow/internal/jobs"
+	"github.com/gundestrup/website-vitals-flow/internal/measure"
+	"github.com/gundestrup/website-vitals-flow/internal/sitekey"
+	"github.com/gundestrup/website-vitals-flow/internal/store"
 )
+
+// version is the serverInfo string in the initialize handshake.
+const version = "0.1.0"
 
 type rpcReq struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -63,50 +69,129 @@ var tools = []map[string]any{
 		"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}}},
 }
 
-// Serve runs the MCP loop over r/w until EOF or ctx end.
+// ScanArgs are the parsed arguments of the "scan" tool.
+type ScanArgs struct {
+	URL     string `json:"url"`
+	Deep    bool   `json:"deep"`
+	Samples int    `json:"samples"`
+	Only    string `json:"only"`
+}
+
+// ScanFunc executes the "scan" tool and returns the result payload the
+// dispatcher wraps into MCP content blocks. Two transports, two impls:
+// stdio uses DirectScan (in-process RunSiteScan); the HTTP /mcp endpoint
+// supplies an enqueue-and-wait func over the serve Runner so scans share
+// the single-slot queue and surface on the dashboard.
+type ScanFunc func(ctx context.Context, a ScanArgs) (map[string]any, error)
+
+// Dispatcher answers MCP JSON-RPC methods — shared by the stdio loop
+// (Serve) and the server's POST /mcp handler, so no tool logic lives in
+// either transport.
+type Dispatcher struct {
+	st   *store.Store
+	scan ScanFunc
+}
+
+// New builds a dispatcher; scan handles the "scan" tool (see ScanFunc).
+func New(st *store.Store, scan ScanFunc) *Dispatcher {
+	return &Dispatcher{st: st, scan: scan}
+}
+
+// DirectScan returns the in-process ScanFunc used by `wvf mcp` stdio:
+// RunSiteScan inline, serialized so MCP scans can't overlap.
+func DirectScan(st *store.Store, cfg config.Config, progress func(string)) ScanFunc {
+	var mu sync.Mutex // single-slot: MCP scans serialize
+	return func(ctx context.Context, a ScanArgs) (map[string]any, error) {
+		key, canon, err := sitekey.From(a.URL)
+		if err != nil {
+			return nil, err
+		}
+		site, err := st.GetOrCreateSite(ctx, key, canon, cfg.KeepLast, cfg.MaxAgeDays)
+		if err != nil {
+			return nil, err
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if a.Samples > 0 {
+			cfg.Samples = a.Samples
+		}
+		if a.Only != "" {
+			site.Only = a.Only // per-request override of the site default
+		}
+		res, runID, err := jobs.RunSiteScan(ctx, st, cfg, site, progress, a.Deep)
+		if err != nil {
+			return nil, err
+		}
+		return ScanPayload(site.Key, runID, res), nil
+	}
+}
+
+// ScanPayload shapes the scan-tool result from a finished measurement —
+// used by both the stdio DirectScan and the HTTP runner-backed scan.
+func ScanPayload(siteKey string, runID int64, res *measure.Result) map[string]any {
+	last := res.Samples[len(res.Samples)-1]
+	return map[string]any{
+		"site": siteKey, "run_id": runID,
+		"ttfb_ms": last.TTFBms, "fcp_ms": last.FCPms, "lcp_ms": last.LCPms,
+		"cls": last.CLS, "tbt_ms": last.TBTms,
+		"requests": len(last.Responses), "attribution": res.Attribution,
+		"lighthouse": res.Lighthouse, "findings": res.Findings,
+	}
+}
+
+// Dispatch handles one raw JSON-RPC message and returns the marshaled
+// response. ok=false when nothing should be sent back (notifications —
+// stdio writes nothing, HTTP answers 202).
+func (d *Dispatcher) Dispatch(ctx context.Context, raw []byte) (out []byte, ok bool) {
+	var req rpcReq
+	resp := rpcResp{JSONRPC: "2.0"}
+	if err := json.Unmarshal(raw, &req); err != nil {
+		resp.Error = &rpcErr{Code: -32700, Message: "parse error: " + err.Error()}
+		b, _ := json.Marshal(resp)
+		return b, true
+	}
+	resp.ID = req.ID
+	switch req.Method {
+	case "initialize":
+		resp.Result = map[string]any{
+			"protocolVersion": "2024-11-05",
+			"capabilities":    map[string]any{"tools": map[string]any{}},
+			"serverInfo":      map[string]any{"name": "wvf", "version": version},
+		}
+	case "ping":
+		resp.Result = map[string]any{}
+	case "tools/list":
+		resp.Result = map[string]any{"tools": tools}
+	case "tools/call":
+		resp.Result = d.callTool(ctx, req.Params)
+	default:
+		if strings.HasPrefix(req.Method, "notifications/") {
+			return nil, false
+		}
+		resp.Error = &rpcErr{Code: -32601, Message: "unknown method " + req.Method}
+	}
+	if req.ID == nil { // notification form — no response expected
+		return nil, false
+	}
+	b, _ := json.Marshal(resp)
+	return b, true
+}
+
+// Serve runs the MCP loop over r/w until EOF or ctx end — the stdio
+// transport around the shared Dispatcher with the DirectScan impl.
 func Serve(ctx context.Context, st *store.Store, cfg config.Config, r io.Reader, w io.Writer) error {
+	d := New(st, DirectScan(st, cfg, func(string) {}))
 	in := bufio.NewScanner(r)
 	in.Buffer(make([]byte, 1<<20), 1<<20)
-	var mu sync.Mutex
-	progress := func(string) {}
 	for in.Scan() {
-		var req rpcReq
-		if err := json.Unmarshal(in.Bytes(), &req); err != nil {
-			continue
-		}
-		var resp rpcResp
-		resp.JSONRPC = "2.0"
-		resp.ID = req.ID
-		switch req.Method {
-		case "initialize":
-			resp.Result = map[string]any{
-				"protocolVersion": "2024-11-05",
-				"capabilities":    map[string]any{"tools": map[string]any{}},
-				"serverInfo":      map[string]any{"name": "wvf", "version": "0.1.0"},
-			}
-		case "notifications/initialized", "notifications/cancelled":
-			continue
-		case "ping":
-			resp.Result = map[string]any{}
-		case "tools/list":
-			resp.Result = map[string]any{"tools": tools}
-		case "tools/call":
-			resp.Result = callTool(ctx, st, cfg, req.Params, &mu, progress)
-		default:
-			resp.Error = &rpcErr{Code: -32601, Message: "unknown method " + req.Method}
-		}
-		if req.ID != nil {
-			mu.Lock()
-			out, _ := json.Marshal(resp)
+		if out, ok := d.Dispatch(ctx, in.Bytes()); ok {
 			_, _ = fmt.Fprintf(w, "%s\n", out)
-			mu.Unlock()
 		}
 	}
 	return in.Err()
 }
 
-func callTool(ctx context.Context, st *store.Store, cfg config.Config,
-	params json.RawMessage, mu *sync.Mutex, progress func(string)) any {
+func (d *Dispatcher) callTool(ctx context.Context, params json.RawMessage) any {
 	var p struct {
 		Name      string          `json:"name"`
 		Arguments json.RawMessage `json:"arguments"`
@@ -124,40 +209,21 @@ func callTool(ctx context.Context, st *store.Store, cfg config.Config,
 		Only    string `json:"only"`
 	}
 	_ = json.Unmarshal(p.Arguments, &args)
+	st := d.st
 
 	switch p.Name {
 	case "scan":
 		if args.URL == "" {
 			return errResult("url required")
 		}
-		key, canon, err := sitekey.From(args.URL)
-		if err != nil {
-			return errResult(err.Error())
-		}
-		site, err := st.GetOrCreateSite(ctx, key, canon, cfg.KeepLast, cfg.MaxAgeDays)
-		if err != nil {
-			return errResult(err.Error())
-		}
-		mu.Lock() // single-slot: MCP scans serialize
-		defer mu.Unlock()
-		if args.Samples > 0 {
-			cfg.Samples = args.Samples
-		}
-		if args.Only != "" {
-			site.Only = args.Only // per-request override of the site default
-		}
-		res, runID, err := jobs.RunSiteScan(ctx, st, cfg, site, progress, args.Deep)
-		if err != nil {
-			return errResult(err.Error())
-		}
-		last := res.Samples[len(res.Samples)-1]
-		return okResult(map[string]any{
-			"site": site.Key, "run_id": runID,
-			"ttfb_ms": last.TTFBms, "fcp_ms": last.FCPms, "lcp_ms": last.LCPms,
-			"cls": last.CLS, "tbt_ms": last.TBTms,
-			"requests": len(last.Responses), "attribution": res.Attribution,
-			"lighthouse": res.Lighthouse, "findings": res.Findings,
+		payload, err := d.scan(ctx, ScanArgs{
+			URL: args.URL, Deep: args.Deep,
+			Samples: args.Samples, Only: args.Only,
 		})
+		if err != nil {
+			return errResult(err.Error())
+		}
+		return okResult(payload)
 	case "sites":
 		sites, err := st.ListSites(ctx)
 		if err != nil {
@@ -222,5 +288,3 @@ func errResult(msg string) any {
 	return map[string]any{"isError": true, "content": []map[string]any{
 		{"type": "text", "text": msg}}}
 }
-
-var _ = time.Now

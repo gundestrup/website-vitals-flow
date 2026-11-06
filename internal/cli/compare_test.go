@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/store"
+	"github.com/gundestrup/website-vitals-flow/internal/store"
 )
 
 // Compare runs end-to-end against a seeded store via the real command.

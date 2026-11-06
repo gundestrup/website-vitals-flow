@@ -14,10 +14,10 @@ import (
 	"github.com/chromedp/cdproto/performance"
 	"github.com/chromedp/chromedp"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/deep"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/http3"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/httpcheck"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/psi"
+	"github.com/gundestrup/website-vitals-flow/internal/deep"
+	"github.com/gundestrup/website-vitals-flow/internal/http3"
+	"github.com/gundestrup/website-vitals-flow/internal/httpcheck"
+	"github.com/gundestrup/website-vitals-flow/internal/psi"
 )
 
 // Severity ranks findings: info < warn < poor.

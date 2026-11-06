@@ -7,14 +7,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/chrome"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/findings"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/measure"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/pipeline"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/store"
+	"github.com/gundestrup/website-vitals-flow/internal/chrome"
+	"github.com/gundestrup/website-vitals-flow/internal/config"
+	"github.com/gundestrup/website-vitals-flow/internal/findings"
+	"github.com/gundestrup/website-vitals-flow/internal/measure"
+	"github.com/gundestrup/website-vitals-flow/internal/pipeline"
+	"github.com/gundestrup/website-vitals-flow/internal/store"
 )
 
 // Runner is a single-slot scan executor fed by a buffered queue.
@@ -31,8 +32,8 @@ func New(st *store.Store, cfg config.Config) *Runner {
 
 // Enqueue registers a job and offers it to the worker. kind is
 // "scan"; trigger lands on the run record (cli|manual|scheduled).
-func (r *Runner) Enqueue(ctx context.Context, siteID int64, kind string, deep bool, only string) (int64, error) {
-	id, err := r.st.InsertJob(ctx, kind, siteID, deep, only)
+func (r *Runner) Enqueue(ctx context.Context, siteID int64, kind string, deep bool, only string, page ...string) (int64, error) {
+	id, err := r.st.InsertJob(ctx, kind, siteID, deep, only, page...)
 	if err != nil {
 		return 0, err
 	}
@@ -70,6 +71,11 @@ func (r *Runner) exec(ctx context.Context, jobID int64) {
 	siteID := j.SiteID
 	deep := j.Deep
 	site, err := r.st.SiteByID(ctx, siteID)
+	if err == nil {
+		if page, perr := r.st.JobPage(ctx, jobID); perr == nil && page != "" {
+			site.URL = strings.TrimSuffix(site.URL, "/") + "/" + strings.TrimPrefix(page, "/")
+		}
+	}
 	if j != nil && j.Only != "" {
 		site.Only = j.Only // per-request override of the site default
 	}

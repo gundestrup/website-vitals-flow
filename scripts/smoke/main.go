@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/chrome"
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
+	"github.com/gundestrup/website-vitals-flow/internal/chrome"
 )
 
 func main() {

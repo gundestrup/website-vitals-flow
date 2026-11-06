@@ -22,14 +22,18 @@ type Job struct {
 }
 
 // InsertJob enqueues a job row and returns its id.
-func (s *Store) InsertJob(ctx context.Context, kind string, siteID int64, deep bool, only string) (int64, error) {
+func (s *Store) InsertJob(ctx context.Context, kind string, siteID int64, deep bool, only string, page ...string) (int64, error) {
 	d := 0
 	if deep {
 		d = 1
 	}
+	pg := ""
+	if len(page) > 0 {
+		pg = page[0]
+	}
 	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO jobs (kind, site_id, state, queued_at, deep, "only") VALUES (?,?, 'queued', ?, ?, ?)`,
-		kind, siteID, time.Now().UTC().Format(time.RFC3339), d, only)
+		`INSERT INTO jobs (kind, site_id, state, queued_at, deep, "only", page) VALUES (?,?, 'queued', ?, ?, ?, ?)`,
+		kind, siteID, time.Now().UTC().Format(time.RFC3339), d, only, pg)
 	if err != nil {
 		return 0, err
 	}
@@ -101,6 +105,14 @@ func (s *Store) LatestRunTime(ctx context.Context, siteID int64) (time.Time, err
 func (s *Store) JobLookup(ctx context.Context, id int64, kind *string, siteID *int64) error {
 	return s.db.QueryRowContext(ctx,
 		`SELECT kind, site_id FROM jobs WHERE id=?`, id).Scan(kind, siteID)
+}
+
+// JobPage returns the optional sub-page path attached to a job.
+func (s *Store) JobPage(ctx context.Context, id int64) (string, error) {
+	var p string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT page FROM jobs WHERE id=?`, id).Scan(&p)
+	return p, err
 }
 
 // SiteByID fetches a site by primary key.

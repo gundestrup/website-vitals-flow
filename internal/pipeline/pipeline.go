@@ -6,12 +6,12 @@ package pipeline
 import (
 	"context"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/deep"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/findings"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/http3"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/httpcheck"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/measure"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/psi"
+	"github.com/gundestrup/website-vitals-flow/internal/deep"
+	"github.com/gundestrup/website-vitals-flow/internal/findings"
+	"github.com/gundestrup/website-vitals-flow/internal/http3"
+	"github.com/gundestrup/website-vitals-flow/internal/httpcheck"
+	"github.com/gundestrup/website-vitals-flow/internal/measure"
+	"github.com/gundestrup/website-vitals-flow/internal/psi"
 )
 
 // EngineErrors collects engine-layer failures as info findings —

@@ -3,7 +3,7 @@
 GOFILES := $(shell find . -name '*.go' -not -path './vendor/*')
 
 build:
-	go build -o bin/wvf ./cmd/wvf
+	go build -ldflags "-s -w -X github.com/gundestrup/website-vitals-flow/internal/cli.version=$(VERSION)" -o bin/wvf ./cmd/wvf
 
 test:
 	go test -race ./...
@@ -25,6 +25,10 @@ webcheck:
 	@test ! -d node_modules/html-validate || ./node_modules/.bin/html-validate internal/server/static/index.html
 	@echo "webcheck ok"
 
+# swiftbar plugin lifecycle: states + install/uninstall
+sbtest:
+	@sh scripts/swiftbar/test.sh
+
 mdcheck:
 	@test ! -d node_modules/markdownlint-cli2 || ./node_modules/.bin/markdownlint-cli2 "*.md" "docs/**/*.md" | tail -1 | grep -q "0 error" && echo "mdcheck ok"
 
@@ -37,7 +41,7 @@ lint:
 	@command -v golangci-lint >/dev/null 2>&1 || { echo "golangci-lint not installed — skipped"; exit 0; }
 	@golangci-lint run ./...
 
-check: vet test lint build jscheck uiqa webcheck mdcheck yamlcheck
+check: vet test lint build jscheck uiqa webcheck mdcheck yamlcheck sbtest
 	@echo "check ok"
 
 # smoke: load the dashboard headless, fail on console errors —

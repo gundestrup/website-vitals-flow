@@ -1,4 +1,4 @@
-module forgejo.borg-collective.eu/svend/website-vitals-flow
+module github.com/gundestrup/website-vitals-flow
 
 go 1.27.3
 
@@ -13,6 +13,7 @@ require (
 )
 
 require (
+	github.com/andybalholm/brotli v1.2.8 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/go-json-experiment/json v0.0.0-20260820222146-c27c302e5fc3 // indirect
 	github.com/google/uuid v1.6.0 // indirect

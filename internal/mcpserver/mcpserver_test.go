@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/store"
+	"github.com/gundestrup/website-vitals-flow/internal/config"
+	"github.com/gundestrup/website-vitals-flow/internal/store"
 )
 
 func seedStore(t *testing.T) *store.Store {
