@@ -1,0 +1,50 @@
+{{define "content"}}
+<div>
+<a href="/" class="mono fs-80" x-text="t('all')">← all sites</a>
+<div class=job-meta>
+    <div class="select is-small fld-auto"><select x-model="scanType">
+      <option value="">default</option><option value="deep">deep</option><option value="custom">custom…</option>
+    </select></div>
+    <template x-if="scanType==='custom'"><span class=toolbar-tight>
+      <template x-for="o in onlyOpts"><label class="mono fs-75">
+        <input type=checkbox :value="o" x-model="onlySel"> <span x-text="o"></span></label></template>
+    </span></template>
+    <button type="button" class="button is-small is-primary" @click="scanSel()" x-bind:disabled="busy"><span x-text="t('scan')">scan</span></button>
+    <button type="button" class="button is-small" @click="editSel()"><span x-text="t('edit')">edit</span></button>
+    <button type="button" class="button is-small" @click="prune(sel)"><span x-text="t('prune')">prune</span></button>
+    <button type="button" class="button is-small is-light" @click="delSel()">✕</button>
+    <span x-show="activeJob()" class="mono job-status">
+      <progress class="progress is-small is-primary prog-sm" max=100></progress>
+      <span x-text="jobText()" class=fs-72></span>
+    </span>
+</div>
+<p class=eyebrow>{{.Key}}</p>
+{{if .HasRun}}
+<div class=detail-top>
+    <div class=metric-grid>{{range .Cards}}{{template "metric-cell" .}}{{end}}</div>
+    {{template "shot-card" .Shot}}
+</div>
+{{else}}
+<p class="mono meta-line">no runs yet — hit scan to measure</p>
+{{end}}
+{{template "pages-bar" .}}
+<h2 class="title is-5 section-heading" x-text="t('trends')">Trends</h2>
+<div class="trend-grid">
+    <div class=trend-cell><div class=metric-lbl>TTFB</div><div class=trend-chart><canvas id="tr-ttfb"></canvas></div></div>
+    <div class=trend-cell><div class=metric-lbl>FCP</div><div class=trend-chart><canvas id="tr-fcp"></canvas></div></div>
+    <div class=trend-cell><div class=metric-lbl>LCP</div><div class=trend-chart><canvas id="tr-lcp"></canvas></div></div>
+    <div class=trend-cell><div class=metric-lbl>CLS</div><div class=trend-chart><canvas id="tr-cls"></canvas></div></div>
+    <div class=trend-cell><div class=metric-lbl>TBT</div><div class=trend-chart><canvas id="tr-tbt"></canvas></div></div>
+    <div class=trend-cell><div class=metric-lbl>requests</div><div class=trend-chart><canvas id="tr-reqs"></canvas></div></div>
+    <div class=trend-cell><div class=metric-lbl>weight</div><div class=trend-chart><canvas id="tr-weight"></canvas></div></div>
+</div>
+{{if .Findings}}<h2 class="title is-5 section-heading" x-text="t('findings')">Findings</h2>
+{{range .Findings}}{{template "finding" .}}{{end}}{{end}}
+{{if .Console}}<h2 class="title is-5 section-heading" x-text="t('console')">Console</h2>
+{{range .Console}}{{template "console-entry" .}}{{end}}{{end}}
+<h2 class="title is-5 section-heading" x-text="t('runs')">Runs</h2>
+<div class=table-container><table class="table is-fullwidth"><thead>
+<tr><th>id</th><th>when</th><th>engine</th><th>ttfb</th><th>lcp</th><th>cls</th><th>tbt</th><th>proto</th><th>report</th></tr></thead>
+<tbody>{{range .Runs}}{{template "run-row" .}}{{end}}</tbody></table></div>
+</div>
+{{end}}

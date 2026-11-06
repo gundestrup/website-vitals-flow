@@ -1,5 +1,7 @@
 # website-vitals-flow
 
+![website-vitals-flow](docs/assets/Borg-Collective_template%20website-vitals.svg)
+
 Contained web-performance monitor for localhost and deployed sites —
 Core Web Vitals + HTTP behaviour (h2/h3, compression, caching) via a
 real Chrome, plus optional deep layers (web-vitals.js attribution,

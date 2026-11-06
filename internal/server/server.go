@@ -7,7 +7,6 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"html"
 	"html/template"
 	"io"
 	"io/fs"
@@ -15,7 +14,6 @@ import (
 	"net/url"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"time"
@@ -45,6 +43,7 @@ type Server struct {
 	cfg    config.Config
 	runner *jobs.Runner
 	mcpd   *mcpserver.Dispatcher
+	tmpl   map[string]*template.Template // parsed once: layout+partials+page
 }
 
 // New builds the handler. WVF_DEV_STATIC=<dir> serves assets from disk.
@@ -91,7 +90,7 @@ func gzipMiddleware(h http.Handler) http.Handler {
 
 // New builds the dashboard+API handler with gzip + headers middleware.
 func New(st *store.Store, cfg config.Config, r *jobs.Runner) http.Handler {
-	s := &Server{st: st, cfg: cfg, runner: r}
+	s := &Server{st: st, cfg: cfg, runner: r, tmpl: parseTemplates()}
 	// /mcp shares the mcpserver dispatch (same tools as `wvf mcp` stdio)
 	// but the scan tool goes through the runner — see scanViaRunner.
 	s.mcpd = mcpserver.New(st, s.scanViaRunner)
@@ -103,9 +102,11 @@ func New(st *store.Store, cfg config.Config, r *jobs.Runner) http.Handler {
 	mux.HandleFunc("GET /api/jobs/stream", s.jobsStream)
 	mux.HandleFunc("GET /api/jobs/{id}", s.job)
 	mux.HandleFunc("GET /badge.svg", s.badge)
-	// SPA route: /site/<key> serves the same index (':' is legal in
-	// a path segment, so /site/localhost:8473 works directly)
-	mux.HandleFunc("GET /site/{key}", s.index)
+	// front page is a template now; /site/<key> renders its own
+	// server-side detail view (':' is legal in a path segment, so
+	// /site/localhost:8473 works directly)
+	mux.HandleFunc("GET /{$}", s.index)
+	mux.HandleFunc("GET /site/{key}", s.sitePage)
 	mux.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set(hdrContentType, "text/plain")
 		_, _ = w.Write([]byte("User-agent: *\nAllow: /\n"))
@@ -115,13 +116,28 @@ func New(st *store.Store, cfg config.Config, r *jobs.Runner) http.Handler {
 		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>/</loc></url></urlset>`))
 	})
-	mux.HandleFunc("GET /site.webmanifest", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /site.webmanifest", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(hdrContentType, "application/manifest+json")
-		_, _ = w.Write([]byte(`{"name":"website-vitals-flow","display":"standalone","icons":[{"src":"/favicon.ico","type":"image/svg+xml"}]}`))
+		http.ServeFileFS(w, r, staticFS, "static/site.webmanifest")
 	})
+	mux.HandleFunc("GET /favicon.svg", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFileFS(w, r, staticFS, "static/favicon.svg")
+	})
+	mux.HandleFunc("GET /favicon-96x96.png", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFileFS(w, r, staticFS, "static/favicon-96x96.png")
+	})
+	mux.HandleFunc("GET /apple-touch-icon.png", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFileFS(w, r, staticFS, "static/apple-touch-icon.png")
+	})
+	for _, f := range []string{"web-app-manifest-192x192.png", "web-app-manifest-512x512.png"} {
+		f := f
+		mux.HandleFunc("GET /"+f, func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFileFS(w, r, staticFS, "static/"+f)
+		})
+	}
 	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(hdrContentType, "image/svg+xml")
-		http.ServeFileFS(w, r, staticFS, "static/icons/check.svg")
+		http.ServeFileFS(w, r, staticFS, "static/favicon.ico")
 	})
 	mux.HandleFunc("GET /site/{key}/report/{id}", s.report)
 	mux.HandleFunc("POST /api/scan", s.scan)
@@ -136,16 +152,6 @@ func New(st *store.Store, cfg config.Config, r *jobs.Runner) http.Handler {
 	mux.HandleFunc("GET /report/{id}", s.report)
 	mux.Handle("GET /", s.static())
 	return headers(gzipMiddleware(mux))
-}
-
-func (s *Server) index(w http.ResponseWriter, _ *http.Request) {
-	b, err := staticFS.ReadFile("static/index.html")
-	if err != nil {
-		http.Error(w, "index missing", 500)
-		return
-	}
-	w.Header().Set(hdrContentType, ctHTML)
-	_, _ = w.Write(b) // nosemgrep -- static embedded index
 }
 
 func (s *Server) static() http.Handler {
@@ -733,179 +739,5 @@ func (s *Server) prune(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]int64{"dropped": dropped}, nil)
 }
 
-// report renders one run's detail_json as a standalone HTML page.
-func (s *Server) report(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		http.Error(w, "bad id", 400)
-		return
-	}
-	run, err := s.st.RunByID(r.Context(), id)
-	if err != nil {
-		http.Error(w, "unknown run", 404)
-		return
-	}
-	site, _ := s.st.SiteByID(r.Context(), run.SiteID)
-	var det map[string]any
-	_ = json.Unmarshal([]byte(run.DetailJSON), &det)
-
-	var b strings.Builder
-	reportHeader(&b, site, run, id, det)
-	reportMetrics(&b, run)
-	reportScreenshot(&b, det)
-	reportFindings(&b, det)
-	reportConsole(&b, det)
-	reportDetail(&b, det)
-	t, err := template.New("shell").ParseFS(staticFS, "static/layout.tmpl")
-	if err == nil {
-		var out strings.Builder
-		err = t.ExecuteTemplate(&out, "shell", map[string]any{
-			"Title": "wvf run report", "Eyebrow": "run report",
-			"Body": template.HTML(b.String())}) // #nosec G203 -- leaf values html.EscapeString'd
-		if err == nil {
-			b = out
-		}
-	}
-	w.Header().Set(hdrContentType, ctHTML)
-	_, _ = w.Write([]byte(b.String())) // nosemgrep -- interpolated values html.EscapeString'd
-}
-
-// ago renders t as "Nm ago" / "Nh ago" / "Nd ago".
-func ago(t time.Time) string {
-	d := time.Since(t)
-	switch {
-	case d < time.Hour:
-		return fmt.Sprintf("%dm ago", int(d.Minutes()))
-	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh ago", int(d.Hours()))
-	default:
-		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
-	}
-}
-
-// fmtOpt renders an optional metric as a rounded int or "-".
-func fmtOpt(p *float64) string {
-	if p == nil {
-		return "-"
-	}
-	return fmt.Sprintf("%.0f", *p)
-}
-
-// optVal unwraps an optional metric — 0 when absent.
-func optVal(p *float64) float64 {
-	if p == nil {
-		return 0
-	}
-	return *p
-}
-
-// metricCell renders one badge + value + label grid cell.
-func metricCell(metric, val, label string, v float64) string {
-	band := "na"
-	if metric != "" {
-		band = string(score.Metric(metric, v))
-	}
-	return fmt.Sprintf(`<div class=metric-cell><img class=badge-img src="/badges/%s-%s.svg"><div class="metric-val mono">%s</div><div class=metric-lbl>%s</div></div>`,
-		metric, band, val, label)
-}
-
-// lastSample returns the final sample object from detail_json.
-func lastSample(det map[string]any) (map[string]any, bool) {
-	sm, ok := det["samples"].([]any)
-	if !ok || len(sm) == 0 {
-		return nil, false
-	}
-	m, ok := sm[len(sm)-1].(map[string]any)
-	return m, ok
-}
-
-// reportHeader writes the doctype, backlink, title, and meta line.
-func reportHeader(b *strings.Builder, site *store.Site, run *store.Run, id int64, det map[string]any) {
-
-	key := ""
-	if site != nil {
-		key = site.Key
-	}
-	fmt.Fprintf(b, `<a href="/site/%s" class="mono fs-80">&larr; %s</a>`,
-		url.PathEscape(key), html.EscapeString(key))
-	fmt.Fprintf(b, `<h1 class="title is-4 serif">Run %d</h1>`, id)
-	if u, ok := det["url"].(string); ok {
-		if pu, perr := url.Parse(u); perr == nil && pu.Path != "" && pu.Path != "/" {
-			fmt.Fprintf(b, `<p class="mono meta-line">page %s</p>`, html.EscapeString(strings.TrimPrefix(pu.Path, "/")))
-		}
-	}
-	fmt.Fprintf(b, `<p class="mono meta-line">%s &middot; engine %s &middot; status %s &middot; %s</p>`,
-		run.StartedAt.Format("2006-01-02 15:04"), run.Engine, run.Status, ago(run.StartedAt))
-}
-
-// reportMetrics writes the vitals + size metric grid.
-func reportMetrics(b *strings.Builder, run *store.Run) {
-	b.WriteString(`<div class=metric-grid>`)
-	b.WriteString(metricCell("ttfb", fmt.Sprintf("%.0fms", run.TTFBms), "TTFB", run.TTFBms))
-	b.WriteString(metricCell("fcp", fmtOpt(run.FCPms)+"ms", "FCP", optVal(run.FCPms)))
-	b.WriteString(metricCell("lcp", fmtOpt(run.LCPms)+"ms", "LCP", optVal(run.LCPms)))
-	b.WriteString(metricCell("cls", fmt.Sprintf("%.3f", run.CLS), "CLS", run.CLS))
-	b.WriteString(metricCell("tbt", fmt.Sprintf("%.0f", run.TBTms)+"ms", "TBT", run.TBTms))
-	fmt.Fprintf(b, `<div class=metric-cell><div class="metric-val mono">%d</div><div class=metric-lbl>requests</div></div>`, run.RequestCount)
-	fmt.Fprintf(b, `<div class=metric-cell><div class="metric-val mono">%dKB</div><div class=metric-lbl>weight</div></div>`, run.PageBytes/1024)
-	b.WriteString(`</div>`)
-}
-
-// reportScreenshot writes the last sample's screenshot card, if any.
-func reportScreenshot(b *strings.Builder, det map[string]any) {
-	if m, ok := lastSample(det); ok {
-		if shot, ok := m["screenshot"].(string); ok && shot != "" {
-			fmt.Fprintf(b, `<div class="shot-card mw-340"><div class="metric-lbl shot-lbl">page after load</div><img src="data:image/jpeg;base64,%s"></div>`, shot)
-		}
-	}
-}
-
-// reportFindings writes the findings section, if any.
-func reportFindings(b *strings.Builder, det map[string]any) {
-	fs, ok := det["findings"].([]any)
-	if !ok || len(fs) == 0 {
-		return
-	}
-	b.WriteString(`<h2 class=section-title>Findings</h2>`)
-	for _, fi := range fs {
-		m, _ := fi.(map[string]any)
-		b.WriteString(`<div class=finding>`)
-		fmt.Fprintf(b, `<b class="%v">[%v]</b> %v`, m["severity"], m["severity"], html.EscapeString(fmt.Sprint(m["title"])))
-		if m["link"] != nil {
-			fmt.Fprintf(b, ` <a href="%v" target=_blank rel=noopener>&rarr; guide</a>`, html.EscapeString(fmt.Sprint(m["link"])))
-		}
-		if d, ok := m["detail"].(string); ok && d != "" {
-			fmt.Fprintf(b, `<div class="mono find-detail">%v</div>`, html.EscapeString(d))
-		}
-		b.WriteString(`</div>`)
-	}
-}
-
-// reportConsole writes the last sample's console warn/error/exception
-// entries, if any.
-func reportConsole(b *strings.Builder, det map[string]any) {
-	m, ok := lastSample(det)
-	if !ok {
-		return
-	}
-	cl, ok := m["console"].([]any)
-	if !ok || len(cl) == 0 {
-		return
-	}
-	b.WriteString(`<h2 class=section-title>Console</h2>`)
-	for _, ce := range cl {
-		c, _ := ce.(map[string]any)
-		cls := "sev-poor"
-		if c["kind"] == "warn" {
-			cls = "sev-warn"
-		}
-		fmt.Fprintf(b, `<div class=finding><b class="%v">[%v]</b> <span class="mono fs-78">%v</span></div>`,
-			cls, c["kind"], html.EscapeString(fmt.Sprint(c["text"])))
-	}
-}
-
-// reportDetail dumps the raw detail_json for debugging.
-func reportDetail(b *strings.Builder, det map[string]any) {
-	j, _ := json.MarshalIndent(det, "", "  ")
-	fmt.Fprintf(b, `<h2 class=section-title>detail_json</h2><pre style="background:var(--wvf-bg-soft);padding:1em;overflow:auto;font-size:.75em;border-radius:6px">%s</pre>`, j)
-}
+// sitePage/report/index live in pages.go — the dashboard is
+// server-rendered html/template now (no per-request string building).

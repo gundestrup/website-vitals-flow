@@ -6,12 +6,13 @@ d=internal/server/static
 [ -d "$d" ] || exit 0
 
 # alpine-csp cannot parse: x-html, literal escaped quotes, ||{} guards
-if grep -rnE "x-html=|\\\\'|\|\|[[:space:]]*\{\}" "$d" --include='*.html'; then
+# (pages live in .tmpl now — same Alpine-expression rules apply there)
+if grep -rnE "x-html=|\\\\'|\|\|[[:space:]]*\{\}" "$d" --include='*.html' --include='*.tmpl'; then
   echo "uiqa FAIL: alpine-csp hazard in html"; fail=1
 fi
 
 # all assets must be vendored — no external references
-if grep -rnE '(src|href)="https?://' "$d" --include='*.html'; then
+if grep -rnE '(src|href)="https?://' "$d" --include='*.html' --include='*.tmpl'; then
   echo "uiqa FAIL: external asset reference in html"; fail=1
 fi
 if grep -rnE 'url\(https?://' "$d" --include='*.css'; then

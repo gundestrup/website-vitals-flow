@@ -19,10 +19,11 @@ uiqa:
 	@sh scripts/uiqa.sh
 
 # webcheck: real linters on first-party assets — biome (js/css lint),
-# html-validate (html semantics); vendored files excluded by config
+# html-validate (html semantics); vendored files excluded by config.
+# Pages are .tmpl now — html-validate runs on any standalone .html left.
 webcheck:
 	@test ! -d node_modules/@biomejs || ./node_modules/.bin/biome lint internal/server/static/app.js internal/server/static/style.css
-	@test ! -d node_modules/html-validate || ./node_modules/.bin/html-validate internal/server/static/index.html
+	@test ! -d node_modules/html-validate || sh -c 'set -- internal/server/static/*.html; [ ! -e "$$1" ] || ./node_modules/.bin/html-validate "$$@"'
 	@echo "webcheck ok"
 
 # swiftbar plugin lifecycle: states + install/uninstall
