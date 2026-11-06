@@ -1,7 +1,12 @@
-{{define "shell"}}<!doctype html><html data-theme="light"><meta charset=utf-8>
-<meta name=viewport content="width=device-width,initial-scale=1">
-<link rel=stylesheet href=/style.css>
-<title>{{.Title}}</title><section class=section><div class="container wvf-page">
-<p class=eyebrow>website-vitals-flow · {{.Eyebrow}}</p>
-{{.Body}}
-</div></section>{{end}}
+{{define "shell"}}<!DOCTYPE html><html data-theme="light"><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1"><title>{{.Title}}</title>
+<script src=/theme.js></script><link rel=icon type="image/svg+xml" href=/favicon.svg><link rel=icon type="image/png" sizes="96x96" href=/favicon-96x96.png><link rel=apple-touch-icon sizes="180x180" href=/apple-touch-icon.png><link rel=manifest href=/site.webmanifest><link rel=stylesheet href=/vendor/bulma.min.css><link rel=stylesheet href=/style.css></head>
+<body><div x-data="{{.Comp}}"{{if .Init}} x-init="{{.Init}}"{{end}}><section class=section><div class="container wvf-page">
+<p class=eyebrow>website-vitals-flow{{if .Eyebrow}} · {{.Eyebrow}}{{end}} <span class=scan-all>
+  <button type="button" class="button is-small is-light" @click="toggleLang()" x-text="lang">en</button>
+  <button type="button" class="button is-small is-light" @click="cycleTheme()" x-text="themeIcon()">theme</button>
+</span></p>
+{{template "content" .}}
+</div></section></div>
+{{if .Charts}}<script src=/vendor/chart.umd.js></script>{{end}}<script src=/vendor/cdn.min.js defer></script>
+<script src=/app.js></script></body></html>{{end}}

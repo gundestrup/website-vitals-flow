@@ -1,0 +1,64 @@
+{{define "content"}}
+<div>
+<h1 class="title is-4 section-heading" x-text="t('monitored')">Monitored sites</h1>
+<!-- add site + ad-hoc scan toolbar -->
+<div class="box is-shadowless wvf-panel mb-09">
+  <div class=toolbar>
+    <input type="text" class="input is-small fld-url" x-bind:placeholder="t('url_ph')" x-model="addUrl">
+    <input type="text" class="input is-small fld-sched" x-bind:placeholder="t('sched_ph')" x-model="addSched">
+    <button type="button" class="button is-small is-primary" @click="addSite()"><span x-text="t('addsite')">add site</span></button>
+    <span class=metric-lbl>scan type:</span>
+    <div class="select is-small"><select x-model="scanType">
+      <option value="">default</option><option value="deep">deep</option><option value="custom">custom…</option>
+    </select></div>
+    <template x-if="scanType==='custom'"><span class=toolbar-tight>
+      <template x-for="o in onlyOpts"><label class="mono fs-75">
+        <input type=checkbox :value="o" x-model="onlySel"> <span x-text="o"></span></label></template>
+    </span></template>
+    <button type="button" class="button is-small" @click="scanUrl()"><span x-text="t('scanurl')">scan url</span></button>
+  </div>
+</div>
+<template x-if="jobs.length"><div class="box is-shadowless wvf-panel">
+  <template x-for="j in jobs.slice(0,4)"><div class="job-row mono" x-text="j.state+': '+(j.detail||'')"></div></template>
+</div></template>
+<h2 class=section-title><span x-text="t('monitored')">Monitored sites</span> <span class=scan-all>
+    <button type="button" class="button is-small" @click="scanAll(false)" x-bind:disabled="busy"><span x-text="t('scanall')">scan all</span></button>
+    <button type="button" class="button is-small" @click="scanAll(true)" x-bind:disabled="busy"><span x-text="t('deepscan')">deep scan</span></button>
+  </span></h2>
+<div class=table-container><table class="table is-fullwidth is-hoverable"><thead>
+<tr><th>site</th><th>schedule</th><th>last TTFB</th><th>last LCP</th><th>last CLS</th><th></th></tr></thead>
+<tbody><template x-for="s in monitored()"><tr>
+    <td><a x-bind:href="siteHref(s.key)" x-text="s.label||s.key"></a></td>
+    <td class=mono x-text="s.schedule||'manual'"></td>
+    <td class=mono><template x-if="mcell(s,'ttfb').ok"><img class=badge-img x-bind:src="'/badges/ttfb-'+mcell(s,'ttfb').band+'.svg'"></template> <span x-text="mcell(s,'ttfb').text"></span></td>
+    <td class=mono><template x-if="mcell(s,'lcp').ok"><img class=badge-img x-bind:src="'/badges/lcp-'+mcell(s,'lcp').band+'.svg'"></template> <span x-text="mcell(s,'lcp').text"></span></td>
+    <td class=mono><template x-if="mcell(s,'cls').ok"><img class=badge-img x-bind:src="'/badges/cls-'+mcell(s,'cls').band+'.svg'"></template> <span x-text="mcell(s,'cls').text"></span></td>
+    <td class=nowrap>
+      <button type="button" class="button is-small is-primary" @click="scanSite(s)" x-bind:disabled="busy"><span x-text="t('scan')">scan</span></button>
+      <button type="button" class="button is-small" @click="editSite(s)"><span x-text="t('edit')">edit</span></button>
+      <button type="button" class="button is-small is-light" @click="delSite(s)">✕</button></td>
+  </tr></template></tbody></table></div>
+<h2 class="section-title mt-12"><span x-text="t('recent')">Recent scans</span> <span class="metric-lbl tt-none" x-text="t('adhoc')">(ad-hoc — not scheduled)</span></h2>
+<div class=table-container><table class="table is-fullwidth is-hoverable"><thead>
+<tr><th>site</th><th>schedule</th><th>last TTFB</th><th>last LCP</th><th>last CLS</th><th></th></tr></thead>
+<tbody><template x-for="s in adhoc()"><tr>
+  <td><a x-bind:href="siteHref(s.key)" x-text="s.label||s.key"></a>
+      <span class="tag is-light" x-show="s.deep">deep</span>
+      <span class="tag is-light" x-show="s.only" x-text="s.only"></span></td>
+  <td class=mono x-text="s.schedule||'manual'"></td>
+  <td><template x-if="last[s.key]"><span>
+      <img class=badge-img x-bind:src="'/badges/ttfb-'+bandName('ttfb',last[s.key].ttfb_ms)+'.svg'">
+      <span class="badge-val mono" x-text="fmtv('ttfb',last[s.key].ttfb_ms)"></span></span></template></td>
+  <td><template x-if="last[s.key]"><span>
+      <img class=badge-img x-bind:src="'/badges/lcp-'+bandName('lcp',last[s.key].lcp_ms)+'.svg'">
+      <span class="badge-val mono" x-text="fmtv('lcp',last[s.key].lcp_ms)"></span></span></template></td>
+  <td><template x-if="last[s.key]"><span>
+      <img class=badge-img x-bind:src="'/badges/cls-'+bandName('cls',last[s.key].cls)+'.svg'">
+      <span class="badge-val mono" x-text="fmtv('cls',last[s.key].cls)"></span></span></template></td>
+  <td class=nowrap>
+    <button type="button" class="button is-small is-primary" @click="scanSite(s)" x-bind:disabled="busy"><span x-text="t('scan')">scan</span></button>
+    <button type="button" class="button is-small" @click="editSite(s)"><span x-text="t('edit')">edit</span></button>
+    <button type="button" class="button is-small is-light" @click="delSite(s)">✕</button></td>
+</tr></template></tbody></table></div>
+</div>
+{{end}}

@@ -1,0 +1,18 @@
+{{define "content"}}
+<div>
+<a href="{{.BackHref}}" class="mono fs-80">← {{.Key}}</a>
+<h1 class="title is-4 serif">Run {{.RunID}}</h1>
+{{if .PagePath}}<p class="mono meta-line">page {{.PagePath}}</p>{{end}}
+<p class="mono meta-line">{{.MetaLine}}</p>
+<div class=detail-top>
+    <div class=metric-grid>{{range .Cards}}{{template "metric-cell" .}}{{end}}</div>
+    {{template "shot-card" .Shot}}
+</div>
+{{if .Findings}}<h2 class=section-title>Findings</h2>
+{{range .Findings}}{{template "finding" .}}{{end}}{{end}}
+{{if .Console}}<h2 class=section-title>Console</h2>
+{{range .Console}}{{template "console-entry" .}}{{end}}{{end}}
+<h2 class=section-title>detail_json</h2>
+<pre class=detail-pre>{{.DetailJSON}}</pre>
+</div>
+{{end}}

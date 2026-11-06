@@ -113,8 +113,9 @@ func TestScanNowPruneBadge(t *testing.T) {
 	req = httptest.NewRequest("GET", "/site/a.test", nil)
 	rec = httptest.NewRecorder()
 	s.ServeHTTP(rec, req)
-	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "website-vitals-flow") {
-		t.Fatalf("site route: %d", rec.Code)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "website-vitals-flow") ||
+		!strings.Contains(rec.Body.String(), "metric-cell") {
+		t.Fatalf("site route: %d", rec.Code) // server-rendered site.tmpl
 	}
 	req = httptest.NewRequest("GET", "/report/1", nil)
 	rec = httptest.NewRecorder()

@@ -1,0 +1,55 @@
+{{/* metric-cell: one vitals/widget card — shared by site detail + report.
+     .ID badge name ("" = no badge), .Band good|ok|poor|na, .Text value,
+     .Label caption, .Title tooltip, .Age stale stamp, .Lines status rows.
+     Line .Icon: "check"|"cross"|"" — .Img optional leading icon asset. */}}
+{{define "metric-cell"}}
+<div class=metric-cell title="{{.Title}}">
+{{if .ID}}<img class=badge-img src="/badges/{{.ID}}-{{.Band}}.svg" alt="{{.ID}} {{.Band}}">{{end}}
+<div class="metric-val mono"><span>{{.Text}}</span></div>
+{{if .Lines}}<div class=proto-lines>{{range .Lines}}
+<div class=mono title="{{.Title}}">{{if eq .Icon "check"}}<span class="wvf-icon icon-check ok"></span>{{else if eq .Icon "cross"}}<span class="wvf-icon icon-cross no"></span>{{end}}{{if .Img}}<img class=comp-icon src="{{.Img}}" alt="">{{end}}<span>{{.Label}}</span></div>{{end}}
+</div>{{end}}
+<div class=metric-lbl><span>{{.Label}}</span>{{if .Age}}<span class=metric-age>{{.Age}} ago</span>{{end}}</div>
+</div>
+{{end}}
+
+{{/* shot-card: last sample's screenshot; .Href wraps it in a report link. */}}
+{{define "shot-card"}}{{if .B64}}<div class="shot-card{{if .Wide}} mw-340{{end}}">
+<div class="metric-lbl shot-lbl" x-text="t('shot')">last scan screenshot</div>
+{{if .Href}}<a href="{{.Href}}" title="open latest run report"><img src="data:image/jpeg;base64,{{.B64}}" alt="page after load"></a>{{else}}<img src="data:image/jpeg;base64,{{.B64}}" alt="page after load">{{end}}
+</div>{{end}}{{end}}
+
+{{/* finding: one severity row — shared by site detail + report. */}}
+{{define "finding"}}<div class="job-row row-pad">
+<b class="sev-{{.Severity}}">[{{.Severity}}]</b>
+<span>{{.Title}}</span>
+{{if .Link}}<a href="{{.Link}}" target="_blank" rel="noopener">→ guide</a>{{end}}
+{{if .Detail}}<div class="mono find-detail">{{.Detail}}</div>{{end}}
+</div>{{end}}
+
+{{/* console-entry: one captured console warn/error row. */}}
+{{define "console-entry"}}<div class="job-row row-pad-sm">
+<b class="{{.Class}}">[{{.Kind}}]</b>
+<span class="mono fs-78">{{.Text}}</span>
+</div>{{end}}
+
+{{/* run-row: one row of the runs history table. */}}
+{{define "run-row"}}<tr>
+<td class=mono>{{.ID}}</td><td class=mono>{{.When}}</td>
+<td class=mono>{{.Engine}}</td><td class=mono>{{.TTFB}}</td>
+<td class=mono>{{.LCP}}</td><td class=mono>{{.CLS}}</td>
+<td class=mono>{{.TBT}}</td><td><span class="tag is-light mono">{{.Proto}}</span></td>
+<td class=mono><a href="{{.ReportURL}}" target="_blank" title="open run report">↗</a></td>
+</tr>{{end}}
+
+{{/* pages-bar: page-scan toolbar — Alpine fills the sitemap options. */}}
+{{define "pages-bar"}}
+<h2 class="title is-5 section-heading">Pages</h2>
+<div class=toolbar>
+  <div class="select is-small fld-auto"><select x-model="page">
+    <template x-for="p in pages"><option x-bind:value="p" x-text="p"></option></template>
+  </select></div>
+  <input type="text" class="input is-small fld-url" placeholder="path not in sitemap — e.g. maps/Nordsjaelland/" x-model="page">
+  <button type="button" class="button is-small is-primary" @click="scanPage()" x-bind:disabled="busy||!page">scan page</button>
+</div>
+{{end}}
