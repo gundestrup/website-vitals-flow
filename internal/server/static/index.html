@@ -1,28 +1,28 @@
-<!doctype html><html data-theme="light"><head><meta charset=utf-8><title>website-vitals-flow</title>
+<!DOCTYPE html><html data-theme="light"><head><meta charset=utf-8><title>website-vitals-flow</title>
 <link rel=stylesheet href=/vendor/bulma.min.css><link rel=stylesheet href=/style.css></head>
-<body><section class=section><div class="container" style="max-width:1120px">
+<body><section class=section><div class="container wvf-page">
 <p class=eyebrow>website-vitals-flow</p>
 <h1 class="title is-4 section-heading">Monitored sites</h1>
 <div x-data="dash" x-init="load()">
 <div x-show="!sel">
 <!-- add site + ad-hoc scan toolbar -->
-<div class="box is-shadowless" style="border:1px solid var(--wvf-line);padding:.7em;margin-bottom:.9em">
-  <div style="display:flex;gap:.6em;flex-wrap:wrap;align-items:center">
-    <input class="input is-small" style="width:280px" placeholder="https://site or localhost:3000" x-model="addUrl">
-    <input class="input is-small" style="width:110px" placeholder="schedule 30m" x-model="addSched">
-    <button class="button is-small is-primary" @click="addSite()">add site</button>
+<div class="box is-shadowless wvf-panel mb-09">
+  <div class=toolbar>
+    <input type="text" class="input is-small fld-url" placeholder="https://site or localhost:3000" x-model="addUrl">
+    <input type="text" class="input is-small fld-sched" placeholder="schedule 30m" x-model="addSched">
+    <button type="button" class="button is-small is-primary" @click="addSite()">add site</button>
     <span class=metric-lbl>scan type:</span>
     <select class="select is-small" x-model="scanType">
       <option value="">default</option><option value="deep">deep</option><option value="custom">custom…</option>
     </select>
-    <template x-if="scanType==='custom'"><span style="display:flex;gap:.5em;flex-wrap:wrap">
-      <template x-for="o in onlyOpts"><label class="mono" style="font-size:.75rem">
+    <template x-if="scanType==='custom'"><span class=toolbar-tight>
+      <template x-for="o in onlyOpts"><label class="mono fs-75">
         <input type=checkbox :value="o" x-model="onlySel"> <span x-text="o"></span></label></template>
     </span></template>
-    <button class="button is-small" @click="scanUrl()">scan url</button>
+    <button type="button" class="button is-small" @click="scanUrl()">scan url</button>
   </div>
 </div>
-<template x-if="jobs.length"><div class="box is-shadowless" style="border:1px solid var(--wvf-line);padding:.7em">
+<template x-if="jobs.length"><div class="box is-shadowless wvf-panel">
   <template x-for="j in jobs.slice(0,4)"><div class="job-row mono" x-text="j.state+': '+(j.detail||'')"></div></template>
 </div></template>
 <h2 class=section-title>Monitored sites</h2>
@@ -34,12 +34,12 @@
     <td class=mono><template x-if="mcell(s,'ttfb').ok"><img class=badge-img x-bind:src="'/badges/ttfb-'+mcell(s,'ttfb').band+'.svg'"></template> <span x-text="mcell(s,'ttfb').text"></span></td>
     <td class=mono><template x-if="mcell(s,'lcp').ok"><img class=badge-img x-bind:src="'/badges/lcp-'+mcell(s,'lcp').band+'.svg'"></template> <span x-text="mcell(s,'lcp').text"></span></td>
     <td class=mono><template x-if="mcell(s,'cls').ok"><img class=badge-img x-bind:src="'/badges/cls-'+mcell(s,'cls').band+'.svg'"></template> <span x-text="mcell(s,'cls').text"></span></td>
-    <td style="white-space:nowrap">
-      <button class="button is-small is-primary" @click="scanSite(s)" x-bind:disabled="busy">scan</button>
-      <button class="button is-small" @click="editSite(s)">edit</button>
-      <button class="button is-small is-light" @click="delSite(s)">✕</button></td>
+    <td class=nowrap>
+      <button type="button" class="button is-small is-primary" @click="scanSite(s)" x-bind:disabled="busy">scan</button>
+      <button type="button" class="button is-small" @click="editSite(s)">edit</button>
+      <button type="button" class="button is-small is-light" @click="delSite(s)">✕</button></td>
   </tr></template></tbody></table></div>
-<h2 class=section-title style="margin-top:1.2em">Recent scans <span class=metric-lbl style="text-transform:none">(ad-hoc — not scheduled)</span></h2>
+<h2 class="section-title mt-12">Recent scans <span class="metric-lbl tt-none">(ad-hoc — not scheduled)</span></h2>
 <div class=table-container><table class="table is-fullwidth is-hoverable"><thead>
 <tr><th>site</th><th>schedule</th><th>last TTFB</th><th>last LCP</th><th>last CLS</th><th></th></tr></thead>
 <tbody><template x-for="s in adhoc()"><tr>
@@ -56,28 +56,28 @@
   <td><template x-if="last[s.key]"><span>
       <img class=badge-img x-bind:src="'/badges/cls-'+bandName('cls',last[s.key].cls)+'.svg'">
       <span class="badge-val mono" x-text="fmtv('cls',last[s.key].cls)"></span></span></template></td>
-  <td style="white-space:nowrap">
-    <button class="button is-small is-primary" @click="scanSite(s)" x-bind:disabled="busy">scan</button>
-    <button class="button is-small" @click="editSite(s)">edit</button>
-    <button class="button is-small is-light" @click="delSite(s)">✕</button></td>
+  <td class=nowrap>
+    <button type="button" class="button is-small is-primary" @click="scanSite(s)" x-bind:disabled="busy">scan</button>
+    <button type="button" class="button is-small" @click="editSite(s)">edit</button>
+    <button type="button" class="button is-small is-light" @click="delSite(s)">✕</button></td>
 </tr></template></tbody></table></div></div>
-<div x-show="sel" style="margin-top:1em">
-  <a href="#" @click.prevent="back()" class="mono" style="font-size:.8rem">← all sites</a>
-  <span style="float:right;display:flex;gap:.5em;align-items:center">
-    <select class="select is-small" x-model="scanType" style="width:auto">
+<div x-show="sel" class=mt-1>
+  <a href="#" @click.prevent="back()" class="mono fs-80">← all sites</a>
+  <span class=job-meta>
+    <select class="select is-small fld-auto" x-model="scanType">
       <option value="">default</option><option value="deep">deep</option><option value="custom">custom…</option>
     </select>
-    <template x-if="scanType==='custom'"><span style="display:flex;gap:.4em">
-      <template x-for="o in onlyOpts"><label class="mono" style="font-size:.75rem">
+    <template x-if="scanType==='custom'"><span class=toolbar-tight>
+      <template x-for="o in onlyOpts"><label class="mono fs-75">
         <input type=checkbox :value="o" x-model="onlySel"> <span x-text="o"></span></label></template>
     </span></template>
-    <button class="button is-small is-primary" @click="scanSite({key:sel})" x-bind:disabled="busy">scan</button>
-    <button class="button is-small" @click="editSite(siteByKey(sel))">edit</button>
-    <button class="button is-small" @click="prune(sel)">prune</button>
-    <button class="button is-small is-light" @click="delSite(siteByKey(sel))">✕</button>
-    <span x-show="activeJob()" class=mono style="display:flex;align-items:center;gap:.5em;min-width:220px;justify-content:flex-end">
-      <progress class="progress is-small is-primary" style="width:120px;margin:0" max=100></progress>
-      <span x-text="jobText()" style="font-size:.72rem"></span>
+    <button type="button" class="button is-small is-primary" @click="scanSite({key:sel})" x-bind:disabled="busy">scan</button>
+    <button type="button" class="button is-small" @click="editSite(siteByKey(sel))">edit</button>
+    <button type="button" class="button is-small" @click="prune(sel)">prune</button>
+    <button type="button" class="button is-small is-light" @click="delSite(siteByKey(sel))">✕</button>
+    <span x-show="activeJob()" class="mono job-status">
+      <progress class="progress is-small is-primary prog-sm" max=100></progress>
+      <span x-text="jobText()" class=fs-72></span>
     </span>
   </span>
   <p class=eyebrow x-text="sel"></p>
@@ -97,7 +97,7 @@
       </div></template>
     </div></template>
     <div class="shot-card" x-show="shotSrc()">
-      <div class=metric-lbl style="padding:.4em .6em .2em">last scan screenshot</div>
+      <div class="metric-lbl shot-lbl">last scan screenshot</div>
       <a x-bind:href="lastRunId()?('/site/'+sel+'/report/'+lastRunId()):'#'" title="open latest run report">
       <img x-bind:src="shotSrc()" alt="page after load"></a>
     </div>
@@ -113,12 +113,16 @@
     <div class=trend-cell><div class=metric-lbl>weight</div><div class=trend-chart><canvas id="tr-weight"></canvas></div></div>
   </div>
   <h2 class="title is-5 section-heading" x-show="findings.length">Findings</h2>
-  <template x-for="f in findings"><div class="job-row" style="padding:.4em 0">
+  <template x-for="f in findings"><div class="job-row row-pad">
     <span x-bind:class="'sev-'+f.severity" x-text="'['+f.severity+']'"></span>
     <span x-text="f.title"></span>
     <a x-show="f.link" x-bind:href="f.link" target="_blank" rel="noopener" x-text="'→ guide'"></a>
-    <div class=mono x-show="f.detail" x-text="f.detail"
-      style="font-size:.72rem;color:var(--wvf-muted);white-space:pre-line;padding-left:1.2em"></div>
+    <div class="mono find-detail" x-show="f.detail" x-text="f.detail"></div>
+  </div></template>
+  <h2 class="title is-5 section-heading" x-show="consoleLog.length">Console</h2>
+  <template x-for="c in consoleLog"><div class="job-row row-pad-sm">
+    <span x-bind:class="(c.kind==='warn')?'sev-warn':'sev-poor'" x-text="'['+c.kind+']'"></span>
+    <span class="mono fs-78" x-text="c.text"></span>
   </div></template>
   <h2 class="title is-5 section-heading">Runs</h2>
   <div class=table-container><table class="table is-fullwidth"><thead>

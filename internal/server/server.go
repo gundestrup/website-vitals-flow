@@ -5,8 +5,10 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -22,6 +24,12 @@ import (
 
 //go:embed static
 var staticFS embed.FS
+
+const (
+	hdrContentType = "Content-Type"
+	ctHTML         = "text/html; charset=utf-8"
+	errUnknownSite = "unknown site"
+)
 
 // Server bundles deps for handlers.
 type Server struct {
@@ -61,8 +69,8 @@ func (s *Server) index(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "index missing", 500)
 		return
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write(b)
+	w.Header().Set(hdrContentType, ctHTML)
+	_, _ = w.Write(b) // nosemgrep -- static embedded index
 }
 
 func (s *Server) static() http.Handler {
@@ -89,7 +97,7 @@ func (s *Server) runs(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 	site, err := s.st.SiteByKey(r.Context(), key)
 	if err != nil {
-		writeJSON(w, map[string]string{"error": "unknown site"}, err)
+		writeJSON(w, map[string]string{"error": errUnknownSite}, err)
 		return
 	}
 	runs, err := s.st.RunsForSite(r.Context(), site.ID, 100)
@@ -123,7 +131,7 @@ func (s *Server) scanNow(w http.ResponseWriter, r *http.Request) {
 	}
 	site, err := s.st.SiteByKey(r.Context(), body.Key)
 	if err != nil {
-		writeJSON(w, map[string]string{"error": "unknown site"}, err)
+		writeJSON(w, map[string]string{"error": errUnknownSite}, err)
 		return
 	}
 	// request-level overrides fall back to the site's own settings
@@ -180,9 +188,10 @@ func (s *Server) badge(w http.ResponseWriter, r *http.Request) {
 		vtext = fmtVal(metric, value)
 		band = score.Metric(metric, value)
 	}
-	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Header().Set(hdrContentType, "image/svg+xml")
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	// #nosec G705 -- label/vtext are XML-escaped inside BadgeSVG.
+	// nosemgrep -- svg response, values escaped in score.BadgeSVG
 	_, _ = w.Write([]byte(score.BadgeSVG(label, vtext, band)))
 }
 
@@ -284,27 +293,18 @@ func (s *Server) scan(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, resp, nil)
 		return
 	}
-	if body.Wait > 300 {
-		body.Wait = 300
+	s.waitJob(w, r, jobID, body.Wait, resp)
+}
+
+// waitJob polls the job every 500ms until done/failed, the client
+// disconnects, or wait seconds elapse (capped at 300) — then writes resp.
+func (s *Server) waitJob(w http.ResponseWriter, r *http.Request, jobID int64, wait int, resp map[string]any) {
+	if wait > 300 {
+		wait = 300
 	}
-	deadline := time.Now().Add(time.Duration(body.Wait) * time.Second)
+	deadline := time.Now().Add(time.Duration(wait) * time.Second)
 	for time.Now().Before(deadline) {
-		j, runID, err := s.st.JobByID(r.Context(), jobID)
-		if err != nil {
-			writeJSON(w, nil, err)
-			return
-		}
-		resp["state"] = j.State
-		resp["detail"] = j.Detail
-		if j.State == "done" || j.State == "failed" {
-			if runID > 0 {
-				run, rerr := s.st.RunByID(r.Context(), runID)
-				if rerr == nil {
-					resp["run_id"] = runID
-					resp["run"] = run
-				}
-			}
-			writeJSON(w, resp, nil)
+		if s.pollJob(w, r, jobID, resp) {
 			return
 		}
 		select {
@@ -316,6 +316,30 @@ func (s *Server) scan(w http.ResponseWriter, r *http.Request) {
 	}
 	resp["state"] = "timeout"
 	writeJSON(w, resp, nil)
+}
+
+// pollJob checks the job once and updates resp; returns true when a
+// response was written (store error or terminal job state).
+func (s *Server) pollJob(w http.ResponseWriter, r *http.Request, jobID int64, resp map[string]any) bool {
+	j, runID, err := s.st.JobByID(r.Context(), jobID)
+	if err != nil {
+		writeJSON(w, nil, err)
+		return true
+	}
+	resp["state"] = j.State
+	resp["detail"] = j.Detail
+	if j.State != "done" && j.State != "failed" {
+		return false
+	}
+	if runID > 0 {
+		run, rerr := s.st.RunByID(r.Context(), runID)
+		if rerr == nil {
+			resp["run_id"] = runID
+			resp["run"] = run
+		}
+	}
+	writeJSON(w, resp, nil)
+	return true
 }
 
 // job returns one job + its run id for polling clients.
@@ -338,7 +362,7 @@ type errString string
 func (e errString) Error() string { return string(e) }
 
 func writeJSON(w http.ResponseWriter, v any, err error) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(hdrContentType, "application/json")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		v = map[string]string{"error": err.Error()}
@@ -374,8 +398,11 @@ func (s *Server) siteAdd(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]string{"error": err.Error()}, nil)
 		return
 	}
-	site, err := s.st.UpsertSite(r.Context(), key, canon, b.Label, b.Schedule,
-		s.cfg.KeepLast, s.cfg.MaxAgeDays, b.Deep, b.Only)
+	site, err := s.st.UpsertSite(r.Context(), store.SiteOpts{
+		Key: key, URL: canon, Label: b.Label, Schedule: b.Schedule,
+		KeepLast: s.cfg.KeepLast, MaxAge: s.cfg.MaxAgeDays,
+		Deep: b.Deep, Only: b.Only,
+	})
 	writeJSON(w, site, err)
 }
 
@@ -383,7 +410,7 @@ func (s *Server) siteAdd(w http.ResponseWriter, r *http.Request) {
 func (s *Server) siteEdit(w http.ResponseWriter, r *http.Request) {
 	site, err := s.st.SiteByKey(r.Context(), r.PathValue("key"))
 	if err != nil {
-		writeJSON(w, map[string]string{"error": "unknown site"}, nil)
+		writeJSON(w, map[string]string{"error": errUnknownSite}, nil)
 		return
 	}
 	var b struct {
@@ -409,8 +436,11 @@ func (s *Server) siteEdit(w http.ResponseWriter, r *http.Request) {
 	if b.Only != nil {
 		only = *b.Only
 	}
-	updated, err := s.st.UpsertSite(r.Context(), site.Key, site.URL, label,
-		sched, site.KeepLast, site.MaxAgeDays, deep, only)
+	updated, err := s.st.UpsertSite(r.Context(), store.SiteOpts{
+		Key: site.Key, URL: site.URL, Label: label, Schedule: sched,
+		KeepLast: site.KeepLast, MaxAge: site.MaxAgeDays,
+		Deep: deep, Only: only,
+	})
 	writeJSON(w, updated, err)
 }
 
@@ -458,39 +488,69 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request) {
 	var det map[string]any
 	_ = json.Unmarshal([]byte(run.DetailJSON), &det)
 
-	ago := func(t time.Time) string {
-		d := time.Since(t)
-		switch {
-		case d < time.Hour:
-			return fmt.Sprintf("%dm ago", int(d.Minutes()))
-		case d < 24*time.Hour:
-			return fmt.Sprintf("%dh ago", int(d.Hours()))
-		default:
-			return fmt.Sprintf("%dd ago", int(d.Hours()/24))
-		}
-	}
-	f := func(p *float64) string {
-		if p == nil {
-			return "-"
-		}
-		return fmt.Sprintf("%.0f", *p)
-	}
-	cell := func(metric, val, label string, v float64) string {
-		band := "na"
-		if metric != "" {
-			band = string(score.Metric(metric, v))
-		}
-		return fmt.Sprintf(`<div class=metric-cell><img class=badge-img src="/badges/%s-%s.svg"><div class="metric-val mono">%s</div><div class=metric-lbl>%s</div></div>`,
-			metric, band, val, label)
-	}
-	num := func(p *float64) float64 {
-		if p == nil {
-			return 0
-		}
-		return *p
-	}
-
 	var b strings.Builder
+	reportHeader(&b, site, run, id)
+	reportMetrics(&b, run)
+	reportScreenshot(&b, det)
+	reportFindings(&b, det)
+	reportConsole(&b, det)
+	reportDetail(&b, det)
+	b.WriteString(`</section>`)
+	w.Header().Set(hdrContentType, ctHTML)
+	_, _ = w.Write([]byte(b.String())) // nosemgrep -- interpolated values html.EscapeString'd
+}
+
+// ago renders t as "Nm ago" / "Nh ago" / "Nd ago".
+func ago(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
+	}
+}
+
+// fmtOpt renders an optional metric as a rounded int or "-".
+func fmtOpt(p *float64) string {
+	if p == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%.0f", *p)
+}
+
+// optVal unwraps an optional metric — 0 when absent.
+func optVal(p *float64) float64 {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+
+// metricCell renders one badge + value + label grid cell.
+func metricCell(metric, val, label string, v float64) string {
+	band := "na"
+	if metric != "" {
+		band = string(score.Metric(metric, v))
+	}
+	return fmt.Sprintf(`<div class=metric-cell><img class=badge-img src="/badges/%s-%s.svg"><div class="metric-val mono">%s</div><div class=metric-lbl>%s</div></div>`,
+		metric, band, val, label)
+}
+
+// lastSample returns the final sample object from detail_json.
+func lastSample(det map[string]any) (map[string]any, bool) {
+	sm, ok := det["samples"].([]any)
+	if !ok || len(sm) == 0 {
+		return nil, false
+	}
+	m, ok := sm[len(sm)-1].(map[string]any)
+	return m, ok
+}
+
+// reportHeader writes the doctype, backlink, title, and meta line.
+func reportHeader(b *strings.Builder, site *store.Site, run *store.Run, id int64) {
 	b.WriteString(`<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">`)
 	b.WriteString(`<link rel=stylesheet href=/style.css><title>wvf run report</title><section class=section>`)
 	b.WriteString(`<p class=eyebrow>website-vitals-flow · run report</p>`)
@@ -498,47 +558,81 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request) {
 	if site != nil {
 		key = site.Key
 	}
-	fmt.Fprintf(&b, `<a href="/site/%s" class=mono style="font-size:.8rem">&larr; %s</a>`, key, key)
-	fmt.Fprintf(&b, `<h1 class="title is-4" style="font-family:var(--wvf-serif)">Run %d</h1>`, id)
-	fmt.Fprintf(&b, `<p class=mono style="font-size:.78rem;color:var(--wvf-muted)">%s &middot; engine %s &middot; status %s &middot; %s</p>`,
+	fmt.Fprintf(b, `<a href="/site/%s" class=mono style="font-size:.8rem">&larr; %s</a>`,
+		url.PathEscape(key), html.EscapeString(key))
+	fmt.Fprintf(b, `<h1 class="title is-4" style="font-family:var(--wvf-serif)">Run %d</h1>`, id)
+	fmt.Fprintf(b, `<p class=mono style="font-size:.78rem;color:var(--wvf-muted)">%s &middot; engine %s &middot; status %s &middot; %s</p>`,
 		run.StartedAt.Format("2006-01-02 15:04"), run.Engine, run.Status, ago(run.StartedAt))
+}
 
+// reportMetrics writes the vitals + size metric grid.
+func reportMetrics(b *strings.Builder, run *store.Run) {
 	b.WriteString(`<div class=metric-grid>`)
-	b.WriteString(cell("ttfb", fmt.Sprintf("%.0fms", run.TTFBms), "TTFB", run.TTFBms))
-	b.WriteString(cell("fcp", f(run.FCPms)+"ms", "FCP", num(run.FCPms)))
-	b.WriteString(cell("lcp", f(run.LCPms)+"ms", "LCP", num(run.LCPms)))
-	b.WriteString(cell("cls", fmt.Sprintf("%.3f", run.CLS), "CLS", run.CLS))
-	b.WriteString(cell("tbt", fmt.Sprintf("%.0f", run.TBTms)+"ms", "TBT", run.TBTms))
-	fmt.Fprintf(&b, `<div class=metric-cell><div class="metric-val mono">%d</div><div class=metric-lbl>requests</div></div>`, run.RequestCount)
-	fmt.Fprintf(&b, `<div class=metric-cell><div class="metric-val mono">%dKB</div><div class=metric-lbl>weight</div></div>`, run.PageBytes/1024)
+	b.WriteString(metricCell("ttfb", fmt.Sprintf("%.0fms", run.TTFBms), "TTFB", run.TTFBms))
+	b.WriteString(metricCell("fcp", fmtOpt(run.FCPms)+"ms", "FCP", optVal(run.FCPms)))
+	b.WriteString(metricCell("lcp", fmtOpt(run.LCPms)+"ms", "LCP", optVal(run.LCPms)))
+	b.WriteString(metricCell("cls", fmt.Sprintf("%.3f", run.CLS), "CLS", run.CLS))
+	b.WriteString(metricCell("tbt", fmt.Sprintf("%.0f", run.TBTms)+"ms", "TBT", run.TBTms))
+	fmt.Fprintf(b, `<div class=metric-cell><div class="metric-val mono">%d</div><div class=metric-lbl>requests</div></div>`, run.RequestCount)
+	fmt.Fprintf(b, `<div class=metric-cell><div class="metric-val mono">%dKB</div><div class=metric-lbl>weight</div></div>`, run.PageBytes/1024)
 	b.WriteString(`</div>`)
+}
 
-	if sm, ok := det["samples"].([]any); ok && len(sm) > 0 {
-		if m, ok := sm[len(sm)-1].(map[string]any); ok {
-			if shot, ok := m["screenshot"].(string); ok && shot != "" {
-				b.WriteString(`<div class=shot-card style="max-width:340px"><div class=metric-lbl style="padding:.4em .6em .2em">page after load</div><img src="data:image/jpeg;base64,` + shot + `"></div>`)
-			}
+// reportScreenshot writes the last sample's screenshot card, if any.
+func reportScreenshot(b *strings.Builder, det map[string]any) {
+	if m, ok := lastSample(det); ok {
+		if shot, ok := m["screenshot"].(string); ok && shot != "" {
+			fmt.Fprintf(b, `<div class=shot-card style="max-width:340px"><div class=metric-lbl style="padding:.4em .6em .2em">page after load</div><img src="data:image/jpeg;base64,%s"></div>`, shot)
 		}
 	}
+}
 
-	if fs, ok := det["findings"].([]any); ok && len(fs) > 0 {
-		b.WriteString(`<h2 class=section-title>Findings</h2>`)
-		for _, fi := range fs {
-			m, _ := fi.(map[string]any)
-			b.WriteString(`<div class=finding>`)
-			fmt.Fprintf(&b, `<b class="%v">[%v]</b> %v`, m["severity"], m["severity"], m["title"])
-			if m["link"] != nil {
-				fmt.Fprintf(&b, ` <a href="%v" target=_blank>&rarr; guide</a>`, m["link"])
-			}
-			if d, ok := m["detail"].(string); ok && d != "" {
-				fmt.Fprintf(&b, `<div class=mono style="font-size:.72rem;color:var(--wvf-muted);white-space:pre-line;padding-left:1.2em">%v</div>`, d)
-			}
-			b.WriteString(`</div>`)
-		}
+// reportFindings writes the findings section, if any.
+func reportFindings(b *strings.Builder, det map[string]any) {
+	fs, ok := det["findings"].([]any)
+	if !ok || len(fs) == 0 {
+		return
 	}
+	b.WriteString(`<h2 class=section-title>Findings</h2>`)
+	for _, fi := range fs {
+		m, _ := fi.(map[string]any)
+		b.WriteString(`<div class=finding>`)
+		fmt.Fprintf(b, `<b class="%v">[%v]</b> %v`, m["severity"], m["severity"], html.EscapeString(fmt.Sprint(m["title"])))
+		if m["link"] != nil {
+			fmt.Fprintf(b, ` <a href="%v" target=_blank rel=noopener>&rarr; guide</a>`, html.EscapeString(fmt.Sprint(m["link"])))
+		}
+		if d, ok := m["detail"].(string); ok && d != "" {
+			fmt.Fprintf(b, `<div class=mono style="font-size:.72rem;color:var(--wvf-muted);white-space:pre-line;padding-left:1.2em">%v</div>`, html.EscapeString(d))
+		}
+		b.WriteString(`</div>`)
+	}
+}
+
+// reportConsole writes the last sample's console warn/error/exception
+// entries, if any.
+func reportConsole(b *strings.Builder, det map[string]any) {
+	m, ok := lastSample(det)
+	if !ok {
+		return
+	}
+	cl, ok := m["console"].([]any)
+	if !ok || len(cl) == 0 {
+		return
+	}
+	b.WriteString(`<h2 class=section-title>Console</h2>`)
+	for _, ce := range cl {
+		c, _ := ce.(map[string]any)
+		cls := "sev-poor"
+		if c["kind"] == "warn" {
+			cls = "sev-warn"
+		}
+		fmt.Fprintf(b, `<div class=finding><b class="%v">[%v]</b> <span class=mono style="font-size:.78rem">%v</span></div>`,
+			cls, c["kind"], html.EscapeString(fmt.Sprint(c["text"])))
+	}
+}
+
+// reportDetail dumps the raw detail_json for debugging.
+func reportDetail(b *strings.Builder, det map[string]any) {
 	j, _ := json.MarshalIndent(det, "", "  ")
-	fmt.Fprintf(&b, `<h2 class=section-title>detail_json</h2><pre style="background:var(--wvf-bg-soft);padding:1em;overflow:auto;font-size:.75em;border-radius:6px">%s</pre>`, j)
-	b.WriteString(`</section>`)
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(b.String()))
+	fmt.Fprintf(b, `<h2 class=section-title>detail_json</h2><pre style="background:var(--wvf-bg-soft);padding:1em;overflow:auto;font-size:.75em;border-radius:6px">%s</pre>`, j)
 }

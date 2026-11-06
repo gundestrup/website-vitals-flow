@@ -17,9 +17,17 @@ Lighthouse audits, PSI). Single Go binary, SQLite state.
 
 ## Dashboard
 
+Two lists: **monitored sites** (scheduled) and **recent scans** (ad-hoc
+`scan url` results — promote via `edit` by setting a schedule).
+
 ![dashboard](docs/img/dashboard.png)
 
-Site detail — trend chart, findings, run history (deeplink `?site=<key>` or `#<key>`):
+Site detail at `/site/{key}` — metric cards (vitals + PROTO
+h1/h2/h3, COMP br/gzip/zstd, TLS, cacheable % + header-signal
+checklist, page size, console), last-scan screenshot panel,
+per-metric trend charts with threshold bands, findings, console
+output, run history. Reports live at `/site/{key}/report/{id}`;
+`?site=` / `#` deeplinks still work.
 
 ![site detail](docs/img/site-detail.png)
 
@@ -38,7 +46,7 @@ scan/history/run/prune as native agent tools.
 
 `scan <url>` [--samples N] [--settle D] [--timeout D] [--json] [--html f] [--deep] [--psi] [--only lcp,cls,...]
 `sites add|list|remove` [--schedule D] [--deep] [--only set] · `report <id>` · `prune`
-`compare <site>` [--base <run-id>] [--thresh %] — baseline-vs-latest metric diff
+`compare <site>` `[--base <run-id>]` `[--thresh %]` — baseline-vs-latest metric diff
 `serve` · `doctor` · `mcp` (stdio MCP server for IDEs/agents)
 
 ### Badges & screenshots
@@ -70,6 +78,8 @@ scan/history/run/prune as native agent tools.
 | lighthouse audits + findings | — | yes | `deep` | lighthouse CLI (Node) |
 | filmstrip (AVIF/WebP) | — | yes | `deep` | CDP screenshot + avifenc |
 | CrUX field p75 + PSI score | opt-in `--psi` | — | `psi` | PSI API (needs key) |
+| console warn/error/exception capture | yes | yes | — | document-start JS recorder |
+| doc cache/CDN header signals | yes | yes | `http` | httpcheck (cache-control, etag, vary, expires, last-modified, age, cf/x-cache) |
 
 `--only` filters BOTH pipeline stages and reported findings — e.g.
 `scan <url> --only lcp,cls` skips http probes/h3/deep entirely.
@@ -128,6 +138,17 @@ no CDN/runtime deps. References:
 [Lighthouse scoring](https://developer.chrome.com/docs/lighthouse/performance/performance-scoring),
 [Chrome performance insights](https://developer.chrome.com/docs/performance/insights),
 [WebPageTest](https://github.com/catchpoint/WebPageTest) (prior art).
+
+## Quality tooling
+
+`make check` — the full gate, run before commit: `gofmt` gate,
+`go vet`, `go test -race`, `golangci-lint` (`.golangci.yml` v2),
+build, `jscheck` (`node --check` on all static JS), `uiqa`
+(html/css/alpine-csp hygiene — no `x-html`, no `||{}` guards, no
+`\'` escapes, no external assets, balanced braces).
+`make smoke` — e2e: serves on :8421 and fails on any browser console
+error headlessly (needs Chrome).
+`make lint` — golangci-lint alone. `build` stays compile-only.
 
 ## Config (wvf.yml / WVF_* env)
 

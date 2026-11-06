@@ -14,6 +14,9 @@ var ctx0 = context.Background()
 
 var version = "dev"
 
+// cfgFlagHelp is the shared help text for the --config flag.
+const cfgFlagHelp = "path to wvf.yml"
+
 func rootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "wvf",

@@ -85,19 +85,27 @@ func nonneg(f float64) float64 {
 
 // Sample is the vitals data from a single page load.
 type Sample struct {
-	TTFBms     float64     `json:"ttfb_ms"`
-	FCPms      *float64    `json:"fcp_ms,omitempty"`
-	LCPms      *float64    `json:"lcp_ms,omitempty"`
-	LCPElem    string      `json:"lcp_element,omitempty"`
-	CLS        float64     `json:"cls"`
-	TBTms      float64     `json:"tbt_ms"`
-	DCLms      float64     `json:"dom_content_loaded_ms"`
-	LoadMs     float64     `json:"load_ms"`
-	JSHeap     int64       `json:"js_heap_bytes"`
-	DOMNodes   int64       `json:"dom_nodes"`
-	Screenshot string      `json:"screenshot,omitempty"` // jpeg b64
-	Responses  []Response  `json:"responses"`
-	Images     []ImageInfo `json:"images,omitempty"`
+	TTFBms     float64        `json:"ttfb_ms"`
+	FCPms      *float64       `json:"fcp_ms,omitempty"`
+	LCPms      *float64       `json:"lcp_ms,omitempty"`
+	LCPElem    string         `json:"lcp_element,omitempty"`
+	CLS        float64        `json:"cls"`
+	TBTms      float64        `json:"tbt_ms"`
+	DCLms      float64        `json:"dom_content_loaded_ms"`
+	LoadMs     float64        `json:"load_ms"`
+	JSHeap     int64          `json:"js_heap_bytes"`
+	DOMNodes   int64          `json:"dom_nodes"`
+	Screenshot string         `json:"screenshot,omitempty"` // jpeg b64
+	Responses  []Response     `json:"responses"`
+	Images     []ImageInfo    `json:"images,omitempty"`
+	Console    []ConsoleEntry `json:"console,omitempty"`
+}
+
+// ConsoleEntry is a captured console/error event from the page load —
+// warn/error/exception only; log/info are noise. Aids JS debugging.
+type ConsoleEntry struct {
+	Kind string `json:"kind"` // warn | error | exception
+	Text string `json:"text"`
 }
 
 // Result is a complete measurement: samples + the Chrome version used.
@@ -152,6 +160,24 @@ const injectScript = `(() => {
     if (!e.hadRecentInput) window.__wvf.cls += e.value;
   });
   on('longtask', e => { window.__wvf.tbt += Math.max(0, e.duration - 50); });
+  window.__wvf.console = [];
+  const push = (kind, a) => {
+    if (window.__wvf.console.length >= 200) return;
+    const text = a.map(x => {
+      try { return typeof x === 'string' ? x : JSON.stringify(x); }
+      catch (_) { return String(x); }
+    }).join(' ');
+    window.__wvf.console.push({kind, text: text.slice(0, 500)});
+  };
+  for (const m of ['warn', 'error']) {
+    const orig = console[m].bind(console);
+    console[m] = (...a) => { push(m, a); return orig(...a); };
+  }
+  window.addEventListener('error', e => push('exception',
+    [e.message + (e.filename ? ' @ ' + e.filename + ':' + e.lineno : '')]));
+  window.addEventListener('unhandledrejection',
+    e => push('exception', ['unhandled rejection: ' +
+      String(e.reason && e.reason.message || e.reason)]));
 })()`
 
 // collectScript reads the observer buffer plus navigation timing post-load.
@@ -200,103 +226,161 @@ func loadOnce(ctx context.Context, url string, settle time.Duration) (*Sample, e
 	tabCtx, cancel := chromedp.NewContext(ctx)
 	defer cancel()
 
-	var responses []Response
-	pending := map[string]int{}
-	if err := chromedp.Listen(tabCtx, func(ev any) {
-		switch e := ev.(type) {
-		case *network.EventRequestWillBeSent:
-			responses = append(responses, Response{URL: e.Request.URL})
-			pending[e.RequestID.String()] = len(responses) - 1
-		case *network.EventResponseReceived:
-			i, ok := pending[e.RequestID.String()]
-			if !ok {
-				return
-			}
-			r := &responses[i]
-			r.URL = e.Response.URL
-			r.Protocol = e.Response.Protocol
-			r.Status = e.Response.Status
-			r.MimeType = e.Response.MimeType
-			r.ContentEncoding = header(e.Response.Headers, "content-encoding")
-			r.CacheControl = header(e.Response.Headers, "cache-control")
-			r.Headers = headers(e.Response.Headers)
-			r.EncodedBytes = int64(e.Response.EncodedDataLength)
-			if t := e.Response.Timing; t != nil {
-				rt := t.RequestTime * 1000 // monotonic ms
-				r.Timing = &Timing{
-					DNS:     nonneg(t.DNSEnd - t.DNSStart),
-					Connect: nonneg(t.ConnectEnd - t.ConnectStart),
-					SSL:     nonneg(t.SslEnd - t.SslStart),
-					Send:    nonneg(t.SendEnd - t.SendStart),
-					Wait:    nonneg(t.ReceiveHeadersEnd - t.SendEnd),
-				}
-				r.Timing.totalFrom = rt
-			}
-		case *network.EventLoadingFinished:
-			i, ok := pending[e.RequestID.String()]
-			if !ok {
-				return
-			}
-			r := &responses[i]
-			if r.EncodedBytes == 0 {
-				r.EncodedBytes = int64(e.EncodedDataLength)
-			}
-			if r.Timing != nil {
-				fin := float64(e.Timestamp) * 1000
-				r.Timing.Total = float64(fin) - r.Timing.totalFrom
-				r.Timing.Receive = nonneg(r.Timing.Total - (r.Timing.DNS + r.Timing.Connect + r.Timing.SSL + r.Timing.Send + r.Timing.Wait))
-			}
-		}
-	}); err != nil {
+	net := newNetLog()
+	if err := chromedp.Listen(tabCtx, net.handle); err != nil {
 		return nil, fmt.Errorf("listen: %w", err)
 	}
-
-	var pm pageMetrics
-	var pmResult performance.GetMetricsResult
-	err := chromedp.Do(tabCtx,
-		chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
-			if _, err := cdp.Call(ctx, t, network.Enable, network.EnableParams{}); err != nil {
-				return err
-			}
-			if _, err := cdp.Call(ctx, t, performance.Enable, performance.EnableParams{}); err != nil {
-				return err
-			}
-			// Cold cache per sample: later samples must not ride earlier
-			// ones' disk cache or request counts/protocols deflate.
-			if _, err := cdp.Call(ctx, t, network.SetCacheDisabled,
-				network.SetCacheDisabledParams{CacheDisabled: true}); err != nil {
-				return err
-			}
-			if _, err := cdp.Call(ctx, t, page.AddScriptToEvaluateOnNewDocument,
-				page.AddScriptToEvaluateOnNewDocumentParams{Source: injectScript}); err != nil {
-				return err
-			}
-			return nil
-		}),
+	if err := chromedp.Do(tabCtx,
+		setupAction(),
 		chromedp.Navigate(url),
 		chromedp.Sleep(settle),
-	)
+	); err != nil {
+		return nil, err
+	}
+	d, err := collect(tabCtx)
 	if err != nil {
 		return nil, err
 	}
-	if pm, err = chromedp.Run(tabCtx, chromedp.Evaluate[pageMetrics](collectScript)); err != nil {
+	joinImageStats(net.responses, d.images)
+	return newSample(d, net.responses), nil
+}
+
+// netLog accumulates network responses during one page load: requests
+// appear on RequestWillBeSent, then ResponseReceived/LoadingFinished
+// fill in status, protocol, timing, and wire bytes.
+type netLog struct {
+	responses []Response
+	pending   map[string]int
+}
+
+func newNetLog() *netLog {
+	return &netLog{pending: map[string]int{}}
+}
+
+// handle folds one CDP network event into the log.
+func (n *netLog) handle(ev any) {
+	switch e := ev.(type) {
+	case *network.EventRequestWillBeSent:
+		n.responses = append(n.responses, Response{URL: e.Request.URL})
+		n.pending[e.RequestID.String()] = len(n.responses) - 1
+	case *network.EventResponseReceived:
+		n.responseReceived(e)
+	case *network.EventLoadingFinished:
+		n.loadingFinished(e)
+	}
+}
+
+// responseReceived fills in the response head + waterfall timing.
+func (n *netLog) responseReceived(e *network.EventResponseReceived) {
+	i, ok := n.pending[e.RequestID.String()]
+	if !ok {
+		return
+	}
+	r := &n.responses[i]
+	r.URL = e.Response.URL
+	r.Protocol = e.Response.Protocol
+	r.Status = e.Response.Status
+	r.MimeType = e.Response.MimeType
+	r.ContentEncoding = header(e.Response.Headers, "content-encoding")
+	r.CacheControl = header(e.Response.Headers, "cache-control")
+	r.Headers = headers(e.Response.Headers)
+	r.EncodedBytes = int64(e.Response.EncodedDataLength)
+	if t := e.Response.Timing; t != nil {
+		rt := t.RequestTime * 1000 // monotonic ms
+		r.Timing = &Timing{
+			DNS:     nonneg(t.DNSEnd - t.DNSStart),
+			Connect: nonneg(t.ConnectEnd - t.ConnectStart),
+			SSL:     nonneg(t.SslEnd - t.SslStart),
+			Send:    nonneg(t.SendEnd - t.SendStart),
+			Wait:    nonneg(t.ReceiveHeadersEnd - t.SendEnd),
+		}
+		r.Timing.totalFrom = rt
+	}
+}
+
+// loadingFinished fills in wire bytes + total/receive timing.
+func (n *netLog) loadingFinished(e *network.EventLoadingFinished) {
+	i, ok := n.pending[e.RequestID.String()]
+	if !ok {
+		return
+	}
+	r := &n.responses[i]
+	if r.EncodedBytes == 0 {
+		r.EncodedBytes = int64(e.EncodedDataLength)
+	}
+	if r.Timing != nil {
+		fin := float64(e.Timestamp) * 1000
+		r.Timing.Total = float64(fin) - r.Timing.totalFrom
+		r.Timing.Receive = nonneg(r.Timing.Total - (r.Timing.DNS + r.Timing.Connect + r.Timing.SSL + r.Timing.Send + r.Timing.Wait))
+	}
+}
+
+// setupAction enables the network + performance domains and installs
+// the observer injection — runs before navigation.
+func setupAction() chromedp.Action[chromedp.Void] {
+	return chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
+		if _, err := cdp.Call(ctx, t, network.Enable, network.EnableParams{}); err != nil {
+			return err
+		}
+		if _, err := cdp.Call(ctx, t, performance.Enable, performance.EnableParams{}); err != nil {
+			return err
+		}
+		// Cold cache per sample: later samples must not ride earlier
+		// ones' disk cache or request counts/protocols deflate.
+		if _, err := cdp.Call(ctx, t, network.SetCacheDisabled,
+			network.SetCacheDisabledParams{CacheDisabled: true}); err != nil {
+			return err
+		}
+		if _, err := cdp.Call(ctx, t, page.AddScriptToEvaluateOnNewDocument,
+			page.AddScriptToEvaluateOnNewDocumentParams{Source: injectScript}); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// pageData is everything collected from the settled tab.
+type pageData struct {
+	pm      pageMetrics
+	perf    performance.GetMetricsResult
+	images  []ImageInfo
+	console []ConsoleEntry
+	shot    []byte
+}
+
+// collect reads the observer buffer + navigation timing, performance
+// counters, rendered images, console log, and a small jpeg screenshot.
+func collect(tabCtx context.Context) (*pageData, error) {
+	d := &pageData{}
+	var err error
+	if d.pm, err = chromedp.Run(tabCtx, chromedp.Evaluate[pageMetrics](collectScript)); err != nil {
 		return nil, fmt.Errorf("collect metrics: %w", err)
 	}
-	if pmResult, err = chromedp.Run(tabCtx, func(ctx context.Context, t *chromedp.Target) (performance.GetMetricsResult, error) {
+	if d.perf, err = chromedp.Run(tabCtx, func(ctx context.Context, t *chromedp.Target) (performance.GetMetricsResult, error) {
 		return cdp.Call(ctx, t, performance.GetMetrics, cdp.Empty{})
 	}); err != nil {
 		return nil, fmt.Errorf("performance metrics: %w", err)
 	}
-	images, _ := chromedp.Run(tabCtx, chromedp.Evaluate[[]ImageInfo](imagesScript))
-	shot, _ := chromedp.Run(tabCtx, func(ctx context.Context, t *chromedp.Target) ([]byte, error) {
-		q := int64(40)
-		r, err := cdp.Call(ctx, t, page.CaptureScreenshot,
-			page.CaptureScreenshotParams{Format: "jpeg", Quality: &q})
-		if err != nil {
-			return nil, err
-		}
-		return r.Data, nil
-	})
+	d.images, _ = chromedp.Run(tabCtx, chromedp.Evaluate[[]ImageInfo](imagesScript))
+	d.console, _ = chromedp.Run(tabCtx,
+		chromedp.Evaluate[[]ConsoleEntry](`window.__wvf.console || []`))
+	d.shot, _ = chromedp.Run(tabCtx, screenshot)
+	return d, nil
+}
+
+// screenshot grabs a small jpeg of the settled page.
+func screenshot(ctx context.Context, t *chromedp.Target) ([]byte, error) {
+	q := int64(40)
+	r, err := cdp.Call(ctx, t, page.CaptureScreenshot,
+		page.CaptureScreenshotParams{Format: "jpeg", Quality: &q})
+	if err != nil {
+		return nil, err
+	}
+	return r.Data, nil
+}
+
+// joinImageStats copies byte size + mime from the matching response.
+func joinImageStats(responses []Response, images []ImageInfo) {
 	byURL := map[string]*Response{}
 	for i := range responses {
 		byURL[responses[i].URL] = &responses[i]
@@ -307,29 +391,33 @@ func loadOnce(ctx context.Context, url string, settle time.Duration) (*Sample, e
 			images[i].Format = r.MimeType
 		}
 	}
+}
 
+// newSample assembles the Sample from the collected page data.
+func newSample(d *pageData, responses []Response) *Sample {
 	s := &Sample{
-		CLS:       pm.CLS,
-		TBTms:     pm.TBT,
-		FCPms:     pm.FCP,
-		LCPms:     pm.LCP,
-		LCPElem:   pm.LCPElem,
+		CLS:       d.pm.CLS,
+		TBTms:     d.pm.TBT,
+		FCPms:     d.pm.FCP,
+		LCPms:     d.pm.LCP,
+		LCPElem:   d.pm.LCPElem,
 		Responses: responses,
-		Images:    images,
+		Images:    d.images,
+		Console:   d.console,
 	}
-	if len(shot) > 0 {
-		s.Screenshot = base64.StdEncoding.EncodeToString(shot)
+	if len(d.shot) > 0 {
+		s.Screenshot = base64.StdEncoding.EncodeToString(d.shot)
 	}
-	if pm.TTFB != nil {
-		s.TTFBms = *pm.TTFB
+	if d.pm.TTFB != nil {
+		s.TTFBms = *d.pm.TTFB
 	}
-	if pm.DCL != nil {
-		s.DCLms = *pm.DCL
+	if d.pm.DCL != nil {
+		s.DCLms = *d.pm.DCL
 	}
-	if pm.Load != nil {
-		s.LoadMs = *pm.Load
+	if d.pm.Load != nil {
+		s.LoadMs = *d.pm.Load
 	}
-	for _, m := range pmResult.Metrics {
+	for _, m := range d.perf.Metrics {
 		switch m.Name {
 		case "JSHeapUsedSize":
 			s.JSHeap = int64(m.Value)
@@ -337,7 +425,7 @@ func loadOnce(ctx context.Context, url string, settle time.Duration) (*Sample, e
 			s.DOMNodes = int64(m.Value)
 		}
 	}
-	return s, nil
+	return s
 }
 
 func headers(h network.Headers) map[string]string {

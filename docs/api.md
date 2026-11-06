@@ -5,6 +5,7 @@ Served by `wvf serve` on `listen` (default `127.0.0.1:8420`). JSON in/out.
 ## Scan
 
 ### `POST /api/scan`
+
 Trigger a scan for any URL — the site key is created on first sight.
 
 ```json
@@ -22,9 +23,11 @@ Sync response: `{"job": 3, "site": "localhost:3000", "state": "done",
 "run_id": 12, "run": {...}}`. Async: omit `wait`, poll the job.
 
 ### `GET /api/jobs/{id}`
+
 `{"job": {...state, detail...}, "run_id": 12}`
 
 ### `POST /api/scan-now`
+
 `{"key": "localhost:3000"}` → `{"job": N}` — uses the site's `deep` flag.
 
 ## Read
@@ -32,7 +35,9 @@ Sync response: `{"job": 3, "site": "localhost:3000", "state": "done",
 - `GET /api/sites` — every site + config
 - `GET /api/sites/{key}/runs` — newest-first run history (headline metrics)
 - `GET /api/runs/{id}` — one run incl. `detail_json` (samples, responses
-  with per-request timing, http_checks, h3, attribution, lighthouse, psi)
+  with per-request timing, http_checks + cache signals, h3,
+  attribution, lighthouse, psi; samples[].console holds captured
+  page console warn/error/exception entries for JS debugging)
 - `GET /api/jobs` — recent jobs (progress via `detail`)
 
 ## IDE integration (VS Code etc.)

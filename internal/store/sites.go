@@ -63,10 +63,22 @@ func (s *Store) SiteByKey(ctx context.Context, key string) (*Site, error) {
 	return site, nil
 }
 
+// SiteOpts bundles the mutable site fields UpsertSite writes.
+type SiteOpts struct {
+	Key      string
+	URL      string
+	Label    string
+	Schedule string
+	KeepLast int
+	MaxAge   int
+	Deep     bool
+	Only     string
+}
+
 // UpsertSite sets schedule/label/retention on an existing or new site.
-func (s *Store) UpsertSite(ctx context.Context, key, url, label, schedule string, keepLast, maxAge int, deep bool, only string) (*Site, error) {
+func (s *Store) UpsertSite(ctx context.Context, o SiteOpts) (*Site, error) {
 	d := 0
-	if deep {
+	if o.Deep {
 		d = 1
 	}
 	if _, err := s.db.ExecContext(ctx,
@@ -76,11 +88,11 @@ func (s *Store) UpsertSite(ctx context.Context, key, url, label, schedule string
 		   url=excluded.url, label=excluded.label, schedule=excluded.schedule,
 		   keep_last=excluded.keep_last, max_age_days=excluded.max_age_days,
 		   deep=excluded.deep, "only"=excluded."only"`,
-		key, url, label, schedule, keepLast, maxAge, d, only,
+		o.Key, o.URL, o.Label, o.Schedule, o.KeepLast, o.MaxAge, d, o.Only,
 		time.Now().UTC().Format(time.RFC3339)); err != nil {
-		return nil, fmt.Errorf("upsert site %s: %w", key, err)
+		return nil, fmt.Errorf("upsert site %s: %w", o.Key, err)
 	}
-	return s.SiteByKey(ctx, key)
+	return s.SiteByKey(ctx, o.Key)
 }
 
 // ListSites returns every site, newest first.

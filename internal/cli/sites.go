@@ -53,7 +53,10 @@ func sitesCmd() *cobra.Command {
 			if maxAge <= 0 {
 				maxAge = cfg.MaxAgeDays
 			}
-			site, err := st.UpsertSite(ctx0, key, canon, label, schedule, keep, maxAge, deep, only)
+			site, err := st.UpsertSite(ctx0, store.SiteOpts{
+				Key: key, URL: canon, Label: label, Schedule: schedule,
+				KeepLast: keep, MaxAge: maxAge, Deep: deep, Only: only,
+			})
 			if err != nil {
 				return err
 			}
@@ -112,7 +115,7 @@ func sitesCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.PersistentFlags().StringVar(&cfgPath, "config", "", "path to wvf.yml")
+	cmd.PersistentFlags().StringVar(&cfgPath, "config", "", cfgFlagHelp)
 	cmd.AddCommand(add, list, rm)
 	return cmd
 }
@@ -150,7 +153,7 @@ func pruneCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&cfgPath, "config", "", "path to wvf.yml")
+	cmd.Flags().StringVar(&cfgPath, "config", "", cfgFlagHelp)
 	cmd.Flags().StringVar(&only, "site", "", "only this site key")
 	return cmd
 }
@@ -193,7 +196,7 @@ func reportCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&cfgPath, "config", "", "path to wvf.yml")
+	cmd.Flags().StringVar(&cfgPath, "config", "", cfgFlagHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print detail_json")
 	return cmd
 }

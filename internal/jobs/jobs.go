@@ -11,11 +11,9 @@ import (
 
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/chrome"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/deep"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/findings"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/http3"
-	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/httpcheck"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/measure"
+	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/pipeline"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/store"
 )
 
@@ -121,55 +119,15 @@ func RunSiteScan(ctx context.Context, st *store.Store, cfg config.Config,
 	}
 	progress("http checks")
 	only := findings.ParseOnly(site.Only)
-	var engineErrs []measure.Finding
-	engErr := func(id, title string, err error) {
-		engineErrs = append(engineErrs, measure.Finding{ID: id,
-			Severity: measure.SevInfo, Category: "engine",
-			Title: title, Detail: err.Error()})
-	}
+	eng := &pipeline.EngineErrors{}
 	if findings.Want(only, "http") {
-		hc, herr := httpcheck.Probe(scanCtx, res.URL)
-		if herr != nil {
-			engErr("http_error", "http checks failed", herr)
-		}
-		if herr == nil {
-			var assets []httpcheck.Asset
-			if n := len(res.Samples); n > 0 {
-				for _, rsp := range res.Samples[n-1].Responses {
-					assets = append(assets, httpcheck.Asset{URL: rsp.URL, Status: rsp.Status, Headers: rsp.Headers})
-				}
-			}
-			hc.Cache = httpcheck.CacheVerdicts(assets)
-			res.HTTP = hc
-			progress("h3 probe")
-			res.HTTP3 = http3.Probe(scanCtx, res.URL, hc.AltSvc)
-		}
+		pipeline.HTTPChecks(scanCtx, res, eng, progress)
 	}
 	if deepMode && findings.Want(only, "deep") {
-		progress("web-vitals attribution")
-		if a, frames, ff, aerr := deep.CollectAttribution(browser, res.URL); aerr == nil {
-			res.Attribution = a
-			res.Filmstrip = frames
-			res.FilmstripFormat = ff
-		} else {
-			engErr("attr_error", "attribution collect failed", aerr)
-		}
-		if bin, berr := deep.FindBin(); berr == nil {
-			progress("lighthouse")
-			if lh, lerr := deep.Lighthouse(scanCtx, bin, res.URL); lerr == nil {
-				res.Lighthouse = lh
-			} else {
-				engErr("lh_error", "lighthouse audit failed", lerr)
-			}
-		}
+		pipeline.DeepChecks(scanCtx, browser, res, eng, progress)
 	}
 	progress("findings")
-	res.Findings = findings.Filter(findings.Analyze(res), only)
-	res.Findings = append(res.Findings, findings.FromLighthouse(res.Lighthouse)...)
-	res.Findings = append(res.Findings, findings.FromAttribution(res.Attribution)...)
-	res.Findings = append(res.Findings, findings.FromPSI(res.PSI)...)
-	res.Findings = findings.Dedup(res.Findings)
-	res.Findings = findings.Dedup(res.Findings)
+	pipeline.MergeFindings(res, only, eng)
 	progress("storing")
 	runID, err := Persist(ctx, st, site, res, started)
 	return res, runID, err

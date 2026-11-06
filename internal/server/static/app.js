@@ -1,6 +1,6 @@
 document.addEventListener('alpine:init', () => {
   Alpine.data('dash', () => ({
-    sites: [], last: {}, jobs: [], runs: [], sel: '', busy: false, chart: null, findings: [],
+    sites: [], last: {}, jobs: [], runs: [], sel: '', busy: false, chart: null, findings: [], consoleLog: [],
     addUrl:'', addSched:'', scanType:'', onlySel:[],
     onlyOpts:['ttfb','fcp','lcp','cls','tbt','inp','vitals','http','h3','images','js','css','deep','psi'],
     fmt(v){ return v==null?'-':Math.round(v) },
@@ -13,14 +13,14 @@ document.addEventListener('alpine:init', () => {
     bandName(id,v){
       return this.band(id,v).replace('band-','');
     },
-    fmtv(id,v){ return id==='cls'?(v==null?'-':v.toFixed(3)):(v==null?'-':Math.round(v)+'ms') },
+    fmtv(id,v){ return id==='cls'?(v==null?'-':v.toFixed(3)):(v==null?'-':`${Math.round(v)}ms`) },
     det: null, charts: {},
     age(ts){
       const ms=Date.now()-new Date(ts).getTime();
-      const m=ms/6e4; if(m<60) return Math.max(1,Math.round(m))+'m';
-      const h=m/60;  if(h<24) return Math.round(h)+'h';
-      const d=h/24;  if(d<365) return Math.round(d)+'d';
-      return Math.round(d/365)+'y';
+      const m=ms/6e4; if(m<60) return `${Math.max(1,Math.round(m))}m`;
+      const h=m/60;  if(h<24) return `${Math.round(h)}h`;
+      const d=h/24;  if(d<365) return `${Math.round(d)}d`;
+      return `${Math.round(d/365)}y`;
     },
     metricCards(){
       const r=this.last[this.sel]; if(!r) return [];
@@ -31,26 +31,21 @@ document.addEventListener('alpine:init', () => {
       const out=[];
       const ms=(id,v,label)=>{out.push({id,band:this.bandName(id,v),
         text:this.fmtv(id,v),label,age:stale})};
-      const MT={ttfb:'time to first byte — server response speed',
-        fcp:'first contentful paint — first visible content',
-        lcp:'largest contentful paint — main content ready',
-        cls:'cumulative layout shift — visual stability',
-        tbt:'total blocking time — main-thread busy'};
       ms('ttfb',r.ttfb_ms,'TTFB'); ms('fcp',r.fcp_ms,'FCP');
       ms('lcp',r.lcp_ms,'LCP');   ms('cls',r.cls,'CLS');
       ms('tbt',r.tbt_ms,'TBT');
       out.push({id:'',band:'na',text:'',label:'page size',title:'requests / weight / DOM per load',age:stale,
-        lines:[{label:(r.request_count??'-')+' requests',title:'network requests per load'},
-          {img:'/icons/weight-svgrepo-com.svg',label:r.page_bytes?Math.round(r.page_bytes/1024)+'KB':'-',
+        lines:[{label:`${r.request_count??'-'} requests`,title:'network requests per load'},
+          {img:'/icons/weight-svgrepo-com.svg',label:r.page_bytes?`${Math.round(r.page_bytes/1024)}KB`:'-',
            title:'total transferred page weight'},
-          {img:'/icons/dom-svgrepo-com.svg',label:(((this.det||{}).samples||[]).slice(-1)[0]||{}).dom_nodes??r.dom_nodes??'-'+' nodes',
+          {img:'/icons/dom-svgrepo-com.svg',label:(this.det?.samples||[]).slice(-1)[0]?.dom_nodes??r.dom_nodes??'-'+' nodes',
            title:'DOM node count'}]});
       // protocol widget: 3-line status (h3 advertised / h2 negotiated / h1 baseline)
       const d=this.det||{};
       const proto=r.http_protocol||'';
       const d0=d;
-      const h3ok=proto.startsWith('h3')||!!(d0.http3&&d0.http3.advertised);
-      const hcProto=(d0.http_checks&&d0.http_checks.proto)||'';
+      const h3ok=proto.startsWith('h3')||!!(d0.http3?.advertised);
+      const hcProto=(d0.http_checks?.proto)||'';
       const h2ok=h3ok||proto.startsWith('h2')||hcProto.indexOf('2')>-1;
       const h1ok=!!proto||hcProto!=='';
       const nSup=[h3ok,h2ok,h1ok].filter(Boolean).length;
@@ -60,34 +55,39 @@ document.addEventListener('alpine:init', () => {
           {ok:h2ok,label:'HTTP/2',title:'HTTP/2'},
           {ok:h1ok,label:'HTTP/1.1',title:'HTTP/1.1 (baseline)'}]});
       // detail_json fields (encoding/tls/dom/cache live per-response)
-      const smp=(d.samples&&d.samples.length)?d.samples[d.samples.length-1]:{};
-      const resp=smp.responses||[];
-      const doc=resp.find(x=>x.url===d.url)||resp[0]||{};
-      const enc=doc.encoding||doc.content_encoding||'';
-      const encs=(d.http_checks&&d.http_checks.encodings)||{};
-      const encOk=k=>!!(encs[k]&&encs[k].ok);
+      const smp=(d.samples?.length)?d.samples[d.samples.length-1]:{};
+      const encs=(d.http_checks?.encodings)||{};
+      const encOk=k=>!!(encs[k]?.ok);
       out.push({id:'comp',band:encOk('br')?'good':encOk('gzip')?'ok':'na',
         text:'',label:'compression',title:'compression encodings offered by the server',age:stale,
         lines:[{img:'/icons/brotli-compression-icon.svg',ok:encOk('br'),label:'br',title:'Brotli'},
           {img:'/icons/gzip-file-format-variant-svgrepo-com.svg',ok:encOk('gzip'),label:'gzip',title:'gzip'},
           {img:'/icons/zstd.svg',ok:encOk('zstd'),label:'zstd',title:'Zstandard'}]});
-      const tls=(d.http_checks&&d.http_checks.tls_version)||'';
+      const tls=(d.http_checks?.tls_version)||'';
       out.push({id:'tls',band:tls.includes('1.3')?'good':tls?'ok':'na',
         text:tls||'-',label:'TLS',title:'TLS version negotiated',age:stale});
-      const cv=(d.http_checks&&d.http_checks.cache)||[];
+      const cv=(d.http_checks?.cache)||[];
       const tot=cv.length, cacheN=cv.filter(x=>x.cacheable).length;
       const pct=tot?Math.round(cacheN/tot*100):0;
       // NB: % scores static ASSET cacheability; the lines below are
       // the DOCUMENT page's cache/CDN header signals — different thing
       // (a 'no-cache' html is correct even when assets cache 100%).
-      const sig=(d.http_checks&&d.http_checks.signals)||{};
+      const sig=(d.http_checks?.signals)||{};
       const SIGT={'cache-control':'Cache-Control header present','expires':'Expires header present',
         'last-modified':'Last-Modified validator','etag':'ETag validator','vary':'Vary header',
         'age':'CDN/proxy age (cached)','cf-cache-status':'Cloudflare cache status',
         'x-cache':'proxy cache status','x-cache-hits':'cache hit counter'};
       out.push({id:'cache',band:tot?(pct>=80?'good':pct>=50?'ok':'poor'):'na',
-        text:tot?pct+'%':'-',label:'cacheable',title:'share of responses marked cacheable',age:stale,
+        text:tot?`${pct}%`:'-',label:'cacheable',title:'share of responses marked cacheable',age:stale,
         lines:Object.keys(SIGT).map(k=>({ok:!!sig[k],label:k,title:SIGT[k]}))});
+      const con=smp.console||[];
+      const nErr=con.filter(c=>c.kind!=='warn').length, nWarn=con.length-nErr;
+      out.push({id:'console',
+        band:con.length?(nErr?'poor':'ok'):'good',
+        text:con.length?(nErr?`${nErr} err`:`${nWarn} warn`):'clean',
+        label:'console',title:'console messages captured during page load — click Console section below for all',age:stale,
+        lines:con.slice(0,3).map(c=>({ok:c.kind==='warn'?undefined:false,
+          label:(`${c.kind}: ${c.text}`).slice(0,34),title:c.text}))});
       return out;
     },
     async j(u,o){ const r=await fetch(u,o); return r.json() },
@@ -99,9 +99,9 @@ document.addEventListener('alpine:init', () => {
       if(h && !this.sel){ this.sel=h; this.open(h); }
       this.jobs = await this.j('/api/jobs') || [];
       for (const s of this.sites){
-        const rr = await this.j('/api/sites/'+s.key+'/runs');
+        const rr = await this.j(`/api/sites/${s.key}/runs`);
         // last successful run — failed ticks carry null metrics
-        if (rr && rr.length) this.last[s.key]=rr.find(r=>r.status==='ok')||rr[0];
+        if (rr?.length) this.last[s.key]=rr.find(r=>r.status==='ok')||rr[0];
       }
       // async refresh: fast poll while a job is queued/running
       const active=this.jobs.some(j=>j.state==='queued'||j.state==='running');
@@ -110,24 +110,26 @@ document.addEventListener('alpine:init', () => {
         if(this.sel) this.open(this.sel); }, active?3000:15000);
     },
     back(){
-      this.sel=''; this.det=null; this.findings=[]; this.runs=[];
+      this.sel=''; this.det=null; this.findings=[]; this.consoleLog=[]; this.runs=[];
       history.pushState({},'','/');
     },
     async open(key){
-      this.sel=key; history.pushState({},'', '/site/'+encodeURIComponent(key));
-      this.runs=(await this.j('/api/sites/'+key+'/runs'))||[];
+      this.sel=key; history.pushState({},'', `/site/${encodeURIComponent(key)}`);
+      this.runs=(await this.j(`/api/sites/${key}/runs`))||[];
       // only re-render when the newest run actually changed — a poll
       // with no new data must not tear down and rebuild the charts
       const newest=this.runs[0];
       if(newest && newest.id===this._drawnFor && this.det){ return; }
       if(newest){
-        const det=await this.j('/api/runs/'+newest.id);
+        const det=await this.j(`/api/runs/${newest.id}`);
         try{ this.det=JSON.parse(det.detail_json);
              const seen=new Set();
+             const smpl=(this.det.samples||[]); const ls=smpl[smpl.length-1];
+             this.consoleLog=(ls?.console)||[];
              this.findings=(this.det.findings||[]).filter(f=>{
-               const k=f.id+'|'+f.title+'|'+(f.detail||'');
-               return !seen.has(k)&&(seen.add(k),true)});
-           }catch(e){ this.det=null; this.findings=[] }
+               const k=`${f.id}|${f.title}|${f.detail||''}`;
+               if(seen.has(k)) return false; seen.add(k); return true});
+           }catch{ this.det=null; this.findings=[]; this.consoleLog=[] }
       }
       this._drawnFor=newest?newest.id:null;
       setTimeout(()=>this.draw(),0);
@@ -146,13 +148,13 @@ document.addEventListener('alpine:init', () => {
       const only=prompt('only set (empty = all):', s.only||'');
       if(only===null) return;
       const deep=confirm('run deep scans for this site? (attribution + lighthouse)');
-      await this.j('/api/sites/'+s.key,{method:'PATCH',
+      await this.j(`/api/sites/${s.key}`,{method:'PATCH',
         body:JSON.stringify({schedule,only,deep})});
       await this.load();
     },
     async delSite(s){
-      if(!confirm('remove '+s.key+' and its history?')) return;
-      await this.j('/api/sites/'+s.key,{method:'DELETE'});
+      if(!confirm(`remove ${s.key} and its history?`)) return;
+      await this.j(`/api/sites/${s.key}`,{method:'DELETE'});
       if(this.sel===s.key){ this.sel=''; history.pushState({},'','/'); }
       await this.load();
     },
@@ -161,25 +163,25 @@ document.addEventListener('alpine:init', () => {
       const site=this.siteByKey(this.sel);
       return this.jobs.find(j=>(j.state==='queued'||j.state==='running')&&j.site_id===site.id);
     },
-    jobText(){ const j=this.activeJob(); return j?('job '+j.id+': '+j.state+' '+(j.detail||'')):'' },
+    jobText(){ const j=this.activeJob(); return j?(`job ${j.id}: ${j.state} ${j.detail||''}`):'' },
     lastRunId(){ const r=this.runs||[]; return r.length?r[0].id:null },
     shotSrc(){
       const d=this.det||{};
-      const sm=(d.samples&&d.samples.length)?d.samples[d.samples.length-1]:null;
-      return (sm&&sm.screenshot)?('data:image/jpeg;base64,'+sm.screenshot):null;
+      const sm=(d.samples?.length)?d.samples[d.samples.length-1]:null;
+      return (sm?.screenshot)?(`data:image/jpeg;base64,${sm.screenshot}`):null;
     },
     // site-row metric cell: {band,text} for badge+value; null = no data
     mcell(s,m){ // always returns object — CSP parser can't do ||{}
       const r=this.last[s.key];
-      if(!r||(m==='cls'?r.cls:r[m+'_ms'])==null) return {ok:false,band:'na',text:''};
-      const v=m==='cls'?r.cls:r[m+'_ms'];
-      return {ok:true,band:this.bandName(m,v),text:m==='cls'?v.toFixed(3):Math.round(v)+'ms'};
+      if(!r||(m==='cls'?r.cls:r[`${m}_ms`])==null) return {ok:false,band:'na',text:''};
+      const v=m==='cls'?r.cls:r[`${m}_ms`];
+      return {ok:true,band:this.bandName(m,v),text:m==='cls'?v.toFixed(3):`${Math.round(v)}ms`};
     },
     monitored(){ return this.sites.filter(s=>s.schedule); },
     adhoc(){ return this.sites.filter(s=>!s.schedule); },
     // httpcaching.com-style checklists: header presence + encoding results
     signalList(){
-      const d=this.det||{}; const sig=(d.http_checks&&d.http_checks.signals)||{};
+      const d=this.det||{}; const sig=(d.http_checks?.signals)||{};
       const out=[];
       const T={'cache-control':'Cache-Control header present','expires':'Expires header present',
         'last-modified':'Last-Modified validator','etag':'ETag validator','vary':'Vary header',
@@ -191,10 +193,10 @@ document.addEventListener('alpine:init', () => {
       return out;
     },
     encList(){
-      const d=this.det||{}; const enc=(d.http_checks&&d.http_checks.encodings)||{};
+      const d=this.det||{}; const enc=(d.http_checks?.encodings)||{};
       const out=[];
       for(const k of ['br','gzip','zstd'])
-        out.push({l:k,ok:!!(enc[k]&&enc[k].ok),t:k+' compression'});
+        out.push({l:k,ok:!!(enc[k]?.ok),t:`${k} compression`});
       return out;
     },
     siteByKey(k){ return this.sites.find(x=>x.key===k)||{key:k} },
@@ -214,17 +216,17 @@ document.addEventListener('alpine:init', () => {
       const r=await this.j('/api/scan',{method:'POST',body:JSON.stringify({
         url:this.addUrl,wait:60,deep:this.scanType==='deep',only})});
       if(!r||r.error){ this.busy=false;
-        alert('scan failed: '+((r&&r.error)||'request failed')); return; }
+        alert(`scan failed: ${(r?.error)||'request failed'}`); return; }
       this.busy=false; this.addUrl=''; await this.load();
     },
     async prune(key){
       const r=await this.j('/api/prune',{method:'POST',body:JSON.stringify({key})});
-      alert('pruned '+(r&&r.dropped)+' runs per retention policy');
+      alert(`pruned ${r?.dropped} runs per retention policy`);
     },
     async scan(key){
       this.busy=true;
       await this.j('/api/scan-now',{method:'POST',body:JSON.stringify({key})});
-      setTimeout(async()=>{ this.busy=false; await this.load(); if(this.sel==key) this.open(key); },2000);
+      setTimeout(async()=>{ this.busy=false; await this.load(); if(this.sel===key) this.open(key); },2000);
     },
     draw(){
       const rs=[...this.runs].reverse();
@@ -241,7 +243,7 @@ document.addEventListener('alpine:init', () => {
       ];
       const bandColor={'good':'#2e7d32','ok':'#f9a825','poor':'#c62828','na':'#97a5a0'};
       for(const sp of specs){
-        const el=document.getElementById('tr-'+sp.id); if(!el) continue;
+        const el=document.getElementById(`tr-${sp.id}`); if(!el) continue;
         if(this.charts[sp.id]) this.charts[sp.id].destroy();
         const vals=rs.map(sp.v);
         // point colors by band — green/amber/red like LH score rings

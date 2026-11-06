@@ -1,0 +1,6 @@
+// IDE mirror of .markdownlint-cli2.jsonc — vscode-markdownlint reads
+// .markdownlint.* files, not the cli2 config. Rule values only.
+{
+  "MD013": { "line_length": 120, "tables": false, "code_blocks": false, "headings": false },
+  "MD024": { "siblings_only": true }
+}
