@@ -98,7 +98,7 @@ func CollectAttribution(ctx context.Context, url string) (*Attribution, []string
 		quality = int64(80)
 	}
 	for i := 0; i < 3; i++ { // filmstrip-lite: 3 frames across settle
-		chromedp.Do(tab, chromedp.Sleep(500*time.Millisecond))
+		_ = chromedp.Do(tab, chromedp.Sleep(500*time.Millisecond))
 		f, q := format, quality
 		buf, err := chromedp.Run(tab, func(ctx context.Context, t *chromedp.Target) ([]byte, error) {
 			r, err := cdp.Call(ctx, t, page.CaptureScreenshot,
@@ -140,7 +140,7 @@ func CollectAttribution(ctx context.Context, url string) (*Attribution, []string
 
 // click dispatches a trusted left-click at viewport-relative x,y.
 func click(tab context.Context, fx, fy float64) {
-	chromedp.Run(tab, chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
+	_, _ = chromedp.Run(tab, chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
 		lay, err := cdp.Call(ctx, t, page.GetLayoutMetrics, cdp.Empty{})
 		if err != nil {
 			return err
@@ -199,12 +199,13 @@ type lhJSON struct {
 // Lighthouse runs the Node lighthouse CLI against url with provided
 // (unthrottled) throttling for localhost parity. Returns nil error
 // only when the binary exists and produces JSON.
-func Lighthouse(ctx context.Context, bin, url string) (*LHReport, error) {
+func Lighthouse(_ context.Context, bin, url string) (*LHReport, error) {
 	// NB: deliberately NOT derived from the incoming ctx — by the time
 	// this runs, the caller's scan budget is usually nearly exhausted,
 	// and lighthouse needs its own full window.
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
+	// #nosec G204 -- bin comes from FindBin (LookPath) or our own config.
 	out, err := exec.CommandContext(ctx, bin, url,
 		"--output=json", "--quiet", "--only-categories=performance",
 		"--throttling-method=provided",
@@ -307,19 +308,21 @@ func AvifEncode(ctx context.Context, bin string, in []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 	src := filepath.Join(dir, "in.jpg")
 	dst := filepath.Join(dir, "out.avif")
-	if err := os.WriteFile(src, in, 0o644); err != nil {
+	if err := os.WriteFile(src, in, 0o600); err != nil {
 		return nil, err
 	}
 	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
+	// #nosec G204 -- bin is the avifenc path from FindAvifenc (LookPath).
 	out, err := exec.CommandContext(cctx, bin,
 		"--speed", "8", "--min", "35", "--max", "45", src, dst).CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("avifenc: %w (%s)", err, out)
 	}
+	// #nosec G304 -- dst is a fixed name inside our own MkdirTemp dir.
 	return os.ReadFile(dst)
 }
 

@@ -16,8 +16,11 @@ import (
 // Finding is an alias to the measure type — findings produces them,
 // measure owns the result shape.
 type Finding = measure.Finding
+
+// Severity is an alias to the measure severity scale.
 type Severity = measure.Severity
 
+// Severity levels re-exported for shorthand use in analyzers.
 const (
 	Info = measure.SevInfo
 	Warn = measure.SevWarn
@@ -83,7 +86,6 @@ func Analyze(res *measure.Result) []Finding {
 		d := "good ≤ 0.1, poor > 0.25"
 		if res.Attribution != nil && len(res.Attribution.CLSItems) > 0 {
 			d += " — largest shift: " + strings.Join(res.Attribution.CLSItems, ", ")
-		} else if s.LCPElem != "" {
 		}
 		out = append(out, Finding{ID: "cls", Severity: sev, Category: "vitals",
 			Title:  fmt.Sprintf("layout shift %.3f", s.CLS),

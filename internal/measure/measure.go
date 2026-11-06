@@ -23,6 +23,7 @@ import (
 // Severity ranks findings: info < warn < poor.
 type Severity string
 
+// Severity levels.
 const (
 	SevInfo Severity = "info"
 	SevWarn Severity = "warn"

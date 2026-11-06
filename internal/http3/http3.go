@@ -37,7 +37,7 @@ func Probe(ctx context.Context, rawurl, altSvc string) *Result {
 	tr := &http3.Transport{
 		TLSClientConfig: &tls.Config{ServerName: u.Hostname()},
 	}
-	defer tr.Close()
+	defer func() { _ = tr.Close() }()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+u.Host+"/", nil)
 	if err != nil {
 		r.Error = err.Error()
@@ -48,8 +48,8 @@ func Probe(ctx context.Context, rawurl, altSvc string) *Result {
 		r.Error = fmt.Sprintf("h3 probe failed: %v", err)
 		return r
 	}
-	io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
-	resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
+	_ = resp.Body.Close()
 	r.Served = resp.ProtoMajor == 3
 	return r
 }

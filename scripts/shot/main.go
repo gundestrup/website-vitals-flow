@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"encoding/json"
+
 	"github.com/chromedp/cdproto/cdp"
 
 	"github.com/chromedp/cdproto/emulation"
@@ -94,7 +95,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	if err := os.WriteFile(os.Args[2], shot, 0o644); err != nil {
+	// #nosec G703 -- output path is an explicit CLI arg of this dev tool.
+	if err := os.WriteFile(os.Args[2], shot, 0o600); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

@@ -12,7 +12,7 @@ func open(t *testing.T) *Store {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { s.Close() })
+	t.Cleanup(func() { _ = s.Close() })
 	return s
 }
 
@@ -74,8 +74,10 @@ func TestNewerSchemaRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.db.ExecContext(ctx, "PRAGMA user_version=99")
-	s.Close()
+	if _, err := s.db.ExecContext(ctx, "PRAGMA user_version=99"); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Close()
 	if _, err := Open(ctx, dir+"/t.db"); err == nil {
 		t.Fatal("newer schema should be refused")
 	}

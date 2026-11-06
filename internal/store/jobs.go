@@ -72,7 +72,7 @@ func (s *Store) RecentJobs(ctx context.Context, limit int) ([]Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Job
 	for rows.Next() {
 		var j Job

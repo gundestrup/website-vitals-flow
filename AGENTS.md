@@ -25,5 +25,9 @@ monitored-site history, IDE-callable API. Single Go binary, SQLite.
 - modernc sqlite stores RFC3339 TEXT — scan as string + time.Parse
 - chromedp v0.22 generics API; observer-only entry types need
   addScriptToEvaluateOnNewDocument; page JS runs on TAB contexts
+- alpine-csp is a restricted parser: no object literals (||{}), no
+  x-html, no unicode logic in expressions — a thrown Expression Error
+  aborts the whole subtree (badges AND x-bind:title tooltips); verify
+  with `make smoke`, never ship console errors
 - Vendored UI assets in static/vendor via pinned package.json — never CDN
 - See analysis.md (design), build-plan.md (phases), matrix.md (survey)

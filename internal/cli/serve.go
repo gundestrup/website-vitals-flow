@@ -23,12 +23,12 @@ func serveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Run the dashboard + scheduler daemon",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, st, err := cfgAndStore(cfgPath)
 			if err != nil {
 				return err
 			}
-			defer st.Close()
+			defer func() { _ = st.Close() }()
 			if n, err := st.FailStaleJobs(cmd.Context()); err == nil && n > 0 {
 				fmt.Printf("marked %d stale jobs failed\n", n)
 			}
@@ -39,8 +39,9 @@ func serveCmd() *cobra.Command {
 			go runner.Start(ctx)
 			go scheduler.Run(ctx, st, runner, tick)
 			h := server.New(st, cfg, runner)
-			srv := &http.Server{Addr: cfg.Listen, Handler: h}
-			go func() { <-ctx.Done(); srv.Shutdown(context.Background()) }()
+			srv := &http.Server{Addr: cfg.Listen, Handler: h,
+				ReadHeaderTimeout: 10 * time.Second}
+			go func() { <-ctx.Done(); _ = srv.Shutdown(context.Background()) }()
 			fmt.Printf("wvf listening on http://%s\n", cfg.Listen)
 			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 				return err

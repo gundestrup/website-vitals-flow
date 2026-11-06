@@ -1,8 +1,10 @@
 // Package score maps metrics to web.dev bands: good/ok/poor.
 package score
 
+// Band is a web.dev rating band for a metric value.
 type Band string
 
+// Rating bands.
 const (
 	Good Band = "good"
 	OK   Band = "ok"

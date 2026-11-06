@@ -168,6 +168,13 @@ document.addEventListener('alpine:init', () => {
       const sm=(d.samples&&d.samples.length)?d.samples[d.samples.length-1]:null;
       return (sm&&sm.screenshot)?('data:image/jpeg;base64,'+sm.screenshot):null;
     },
+    // site-row metric cell: {band,text} for badge+value; null = no data
+    mcell(s,m){ // always returns object — CSP parser can't do ||{}
+      const r=this.last[s.key];
+      if(!r||(m==='cls'?r.cls:r[m+'_ms'])==null) return {ok:false,band:'na',text:''};
+      const v=m==='cls'?r.cls:r[m+'_ms'];
+      return {ok:true,band:this.bandName(m,v),text:m==='cls'?v.toFixed(3):Math.round(v)+'ms'};
+    },
     monitored(){ return this.sites.filter(s=>s.schedule); },
     adhoc(){ return this.sites.filter(s=>!s.schedule); },
     // httpcaching.com-style checklists: header presence + encoding results

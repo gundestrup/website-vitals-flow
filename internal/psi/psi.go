@@ -64,7 +64,7 @@ func Fetch(ctx context.Context, rawurl, apiKey string) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if err != nil {
 		return nil, err
@@ -96,11 +96,4 @@ func Fetch(ctx context.Context, rawurl, apiKey string) (*Result, error) {
 	r.LabTBTms = get("total-blocking-time")
 	r.LabCLS = get("cumulative-layout-shift")
 	return r, nil
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

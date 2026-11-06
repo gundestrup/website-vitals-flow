@@ -19,7 +19,7 @@ func seedStore(t *testing.T) *store.Store {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { st.Close() })
+	t.Cleanup(func() { _ = st.Close() })
 	return st
 }
 
@@ -139,12 +139,16 @@ func TestRunToolAndHistoryLimit(t *testing.T) {
 	var wrapped struct {
 		Run map[string]any `json:"run"`
 	}
-	json.Unmarshal(contentJSON(t, resps[1]), &wrapped)
+	if err := json.Unmarshal(contentJSON(t, resps[1]), &wrapped); err != nil {
+		t.Fatal(err)
+	}
 	if wrapped.Run["id"] != float64(id) || wrapped.Run["ttfb_ms"] != 2.0 {
 		t.Fatalf("run tool wrong: %v", wrapped.Run)
 	}
 	var runs []map[string]any
-	json.Unmarshal(contentJSON(t, resps[2]), &runs)
+	if err := json.Unmarshal(contentJSON(t, resps[2]), &runs); err != nil {
+		t.Fatal(err)
+	}
 	if len(runs) != 1 {
 		t.Fatalf("limit=1 should return 1 run, got %d", len(runs))
 	}
