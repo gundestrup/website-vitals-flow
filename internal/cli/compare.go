@@ -16,12 +16,12 @@ func compareCmd() *cobra.Command {
 		Use:   "compare <site> [--base <run-id>]",
 		Short: "Diff latest run vs a baseline run",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			st, _, err := openStore(cfgPath)
 			if err != nil {
 				return err
 			}
-			defer st.Close()
+			defer func() { _ = st.Close() }()
 			key, _, err := sitekey.From(args[0])
 			if err != nil {
 				return err
@@ -67,12 +67,12 @@ func jobsCmd() *cobra.Command {
 		Use:   "jobs",
 		Short: "List recent jobs (queued/running/done/failed)",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			st, _, err := openStore(cfgPath)
 			if err != nil {
 				return err
 			}
-			defer st.Close()
+			defer func() { _ = st.Close() }()
 			jobs, err := st.RecentJobs(ctx0, limit)
 			if err != nil {
 				return err

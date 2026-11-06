@@ -11,12 +11,13 @@ import (
 	"strconv"
 	"strings"
 
+	"time"
+
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/config"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/jobs"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/score"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/sitekey"
 	"forgejo.borg-collective.eu/svend/website-vitals-flow/internal/store"
-	"time"
 )
 
 //go:embed static
@@ -54,19 +55,20 @@ func New(st *store.Store, cfg config.Config, r *jobs.Runner) http.Handler {
 	return headers(mux)
 }
 
-func (s *Server) index(w http.ResponseWriter, r *http.Request) {
+func (s *Server) index(w http.ResponseWriter, _ *http.Request) {
 	b, err := staticFS.ReadFile("static/index.html")
 	if err != nil {
 		http.Error(w, "index missing", 500)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(b)
+	_, _ = w.Write(b)
 }
 
 func (s *Server) static() http.Handler {
 	var fsys http.FileSystem
 	if dir := os.Getenv("WVF_DEV_STATIC"); dir != "" {
+		// #nosec G703 -- WVF_DEV_STATIC is an explicit local dev override.
 		if st, err := os.Stat(dir); err == nil && st.IsDir() {
 			fsys = http.FS(os.DirFS(dir))
 		}
@@ -96,7 +98,7 @@ func (s *Server) runs(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) run(w http.ResponseWriter, r *http.Request) {
 	var id int64
-	if _, err := fmt_Sscanf(r.PathValue("id"), &id); err != nil {
+	if _, err := fmtSscanf(r.PathValue("id"), &id); err != nil {
 		writeJSON(w, nil, err)
 		return
 	}
@@ -133,7 +135,7 @@ func (s *Server) scanNow(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]int64{"job": id}, err)
 }
 
-func fmt_Sscanf(s string, id *int64) (int, error) {
+func fmtSscanf(s string, id *int64) (int, error) {
 	var n int64
 	for _, c := range s {
 		if c < '0' || c > '9' {
@@ -156,7 +158,7 @@ func (s *Server) badge(w http.ResponseWriter, r *http.Request) {
 	var ok bool
 	if id := q.Get("run"); id != "" {
 		var rid int64
-		if _, err := fmt_Sscanf(id, &rid); err == nil {
+		if _, err := fmtSscanf(id, &rid); err == nil {
 			if run, err := s.st.RunByID(r.Context(), rid); err == nil {
 				value, ok = runMetric(run, metric)
 			}
@@ -166,7 +168,7 @@ func (s *Server) badge(w http.ResponseWriter, r *http.Request) {
 		// raw value mode: ?value=532 or ?cls=0.2
 		if v := q.Get("value"); v != "" {
 			var f float64
-			if _, err := fmt_Sscanfloat(v, &f); err == nil {
+			if _, err := fmtSscanfloat(v, &f); err == nil {
 				value, ok = f, true
 			}
 		}
@@ -180,7 +182,8 @@ func (s *Server) badge(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "image/svg+xml")
 	w.Header().Set("Cache-Control", "public, max-age=300")
-	w.Write([]byte(score.BadgeSVG(label, vtext, band)))
+	// #nosec G705 -- label/vtext are XML-escaped inside BadgeSVG.
+	_, _ = w.Write([]byte(score.BadgeSVG(label, vtext, band)))
 }
 
 func runMetric(r *store.Run, metric string) (float64, bool) {
@@ -210,7 +213,7 @@ func fmtVal(metric string, v float64) string {
 	return fmt.Sprintf("%.0fms", v)
 }
 
-func fmt_Sscanfloat(s string, f *float64) (int, error) {
+func fmtSscanfloat(s string, f *float64) (int, error) {
 	var neg bool
 	i := 0
 	if len(s) > 0 && s[0] == '-' {
@@ -318,7 +321,7 @@ func (s *Server) scan(w http.ResponseWriter, r *http.Request) {
 // job returns one job + its run id for polling clients.
 func (s *Server) job(w http.ResponseWriter, r *http.Request) {
 	var id int64
-	if _, err := fmt_Sscanf(r.PathValue("id"), &id); err != nil {
+	if _, err := fmtSscanf(r.PathValue("id"), &id); err != nil {
 		writeJSON(w, nil, err)
 		return
 	}
@@ -340,7 +343,7 @@ func writeJSON(w http.ResponseWriter, v any, err error) {
 		w.WriteHeader(http.StatusInternalServerError)
 		v = map[string]string{"error": err.Error()}
 	}
-	json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(v)
 }
 
 func headers(next http.Handler) http.Handler {
@@ -506,8 +509,8 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request) {
 	b.WriteString(cell("lcp", f(run.LCPms)+"ms", "LCP", num(run.LCPms)))
 	b.WriteString(cell("cls", fmt.Sprintf("%.3f", run.CLS), "CLS", run.CLS))
 	b.WriteString(cell("tbt", fmt.Sprintf("%.0f", run.TBTms)+"ms", "TBT", run.TBTms))
-	b.WriteString(fmt.Sprintf(`<div class=metric-cell><div class="metric-val mono">%d</div><div class=metric-lbl>requests</div></div>`, run.RequestCount))
-	b.WriteString(fmt.Sprintf(`<div class=metric-cell><div class="metric-val mono">%dKB</div><div class=metric-lbl>weight</div></div>`, run.PageBytes/1024))
+	fmt.Fprintf(&b, `<div class=metric-cell><div class="metric-val mono">%d</div><div class=metric-lbl>requests</div></div>`, run.RequestCount)
+	fmt.Fprintf(&b, `<div class=metric-cell><div class="metric-val mono">%dKB</div><div class=metric-lbl>weight</div></div>`, run.PageBytes/1024)
 	b.WriteString(`</div>`)
 
 	if sm, ok := det["samples"].([]any); ok && len(sm) > 0 {
@@ -537,5 +540,5 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(&b, `<h2 class=section-title>detail_json</h2><pre style="background:var(--wvf-bg-soft);padding:1em;overflow:auto;font-size:.75em;border-radius:6px">%s</pre>`, j)
 	b.WriteString(`</section>`)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(b.String()))
+	_, _ = w.Write([]byte(b.String()))
 }

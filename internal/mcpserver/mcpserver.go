@@ -98,7 +98,7 @@ func Serve(ctx context.Context, st *store.Store, cfg config.Config, r io.Reader,
 		if req.ID != nil {
 			mu.Lock()
 			out, _ := json.Marshal(resp)
-			fmt.Fprintf(w, "%s\n", out)
+			_, _ = fmt.Fprintf(w, "%s\n", out)
 			mu.Unlock()
 		}
 	}
@@ -123,7 +123,7 @@ func callTool(ctx context.Context, st *store.Store, cfg config.Config,
 		Samples int    `json:"samples"`
 		Only    string `json:"only"`
 	}
-	json.Unmarshal(p.Arguments, &args)
+	_ = json.Unmarshal(p.Arguments, &args)
 
 	switch p.Name {
 	case "scan":

@@ -91,7 +91,7 @@ func (s *Store) ListSites(ctx context.Context) ([]Site, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Site
 	for rows.Next() {
 		var site Site

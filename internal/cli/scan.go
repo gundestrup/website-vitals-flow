@@ -166,7 +166,7 @@ func persist(ctx context.Context, cfg config.Config, res *measure.Result, starte
 	if err != nil {
 		return err
 	}
-	defer st.Close()
+	defer func() { _ = st.Close() }()
 	site, err := st.GetOrCreateSite(ctx, key, canon, cfg.KeepLast, cfg.MaxAgeDays)
 	if err != nil {
 		return err
@@ -187,11 +187,11 @@ func writeHTMLReport(path string, res *measure.Result) error {
 	safe := strings.ReplaceAll(string(data), "</", "<\\/")
 	html := strings.ReplaceAll(reportTmpl, "__REPORT_DATA__", safe)
 	if dir := filepath.Dir(path); dir != "." && dir != "" {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return err
 		}
 	}
-	return os.WriteFile(path, []byte(html), 0o644)
+	return os.WriteFile(path, []byte(html), 0o600)
 }
 
 const reportTmpl = `<!doctype html><html><head><meta charset=utf-8><title>wvf report</title>

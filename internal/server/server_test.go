@@ -20,11 +20,13 @@ func seed(t *testing.T) http.Handler {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { st.Close() })
+	t.Cleanup(func() { _ = st.Close() })
 	site, _ := st.GetOrCreateSite(context.Background(), "a.test", "http://a.test", 10, 7)
-	st.InsertRun(context.Background(), &store.Run{SiteID: site.ID, Engine: "cdp",
+	if _, err := st.InsertRun(context.Background(), &store.Run{SiteID: site.ID, Engine: "cdp",
 		Status: "ok", StartedAt: time.Now(), FinishedAt: time.Now(), TTFBms: 42,
-		DetailJSON: `{"findings":[{"severity":"poor","title":"cls 0.3"}]}`})
+		DetailJSON: `{"findings":[{"severity":"poor","title":"cls 0.3"}]}`}); err != nil {
+		t.Fatal(err)
+	}
 	cfg := config.Default()
 	return New(st, cfg, jobs.New(st, cfg))
 }
@@ -43,7 +45,7 @@ func do(t *testing.T, s http.Handler, method, path, body string) (int, map[strin
 	var obj map[string]any
 	var arr []map[string]any
 	if err := json.Unmarshal(rec.Body.Bytes(), &obj); err != nil {
-		json.Unmarshal(rec.Body.Bytes(), &arr)
+		_ = json.Unmarshal(rec.Body.Bytes(), &arr)
 	}
 	return rec.Code, obj, arr
 }
@@ -85,8 +87,8 @@ func TestSiteCRUD(t *testing.T) {
 		t.Fatalf("delete: %d", code)
 	}
 	code, _, arr := do(t, s, "GET", "/api/sites", "")
-	if len(arr) != 1 {
-		t.Fatalf("after delete want 1 site, got %v", arr)
+	if code != 200 || len(arr) != 1 {
+		t.Fatalf("after delete want 1 site, got %d %v", code, arr)
 	}
 }
 

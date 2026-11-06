@@ -13,7 +13,7 @@ import (
 func TestCompareCommand(t *testing.T) {
 	dir := t.TempDir()
 	old, _ := os.Getwd()
-	defer os.Chdir(old)
+	defer func() { _ = os.Chdir(old) }()
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestCompareCommand(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	st.Close()
+	_ = st.Close()
 
 	cmd := compareCmd()
 	if err := cmd.RunE(cmd, []string{"cmp.test"}); err != nil {
@@ -42,9 +42,11 @@ func TestCompareCommand(t *testing.T) {
 	// one-run site must error
 	st2, _ := store.Open(ctx, "state.db")
 	s2, _ := st2.GetOrCreateSite(ctx, "one.test", "http://one.test", 10, 7)
-	st2.InsertRun(ctx, &store.Run{SiteID: s2.ID, Engine: "cdp", Status: "ok",
-		StartedAt: time.Now(), FinishedAt: time.Now()})
-	st2.Close()
+	if _, err := st2.InsertRun(ctx, &store.Run{SiteID: s2.ID, Engine: "cdp", Status: "ok",
+		StartedAt: time.Now(), FinishedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	_ = st2.Close()
 	if err := cmd.RunE(cmd, []string{"one.test"}); err == nil {
 		t.Fatal("expected error for single-run site")
 	}

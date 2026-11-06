@@ -15,12 +15,12 @@ func mcpCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mcp",
 		Short: "Speak MCP over stdio — expose scan/history as agent tools",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			cfg, st, err := cfgAndStore(cfgPath)
 			if err != nil {
 				return err
 			}
-			defer st.Close()
+			defer func() { _ = st.Close() }()
 			fmt.Fprintf(os.Stderr, "wvf mcp ready (tools: scan, sites, history, run, prune)\n")
 			return mcpserver.Serve(ctx0, st, cfg, os.Stdin, os.Stdout)
 		},

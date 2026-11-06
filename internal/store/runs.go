@@ -38,7 +38,7 @@ func (s *Store) InsertRun(ctx context.Context, r *Run) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	var fcp, lcp any
 	if r.FCPms != nil {
 		fcp = *r.FCPms
@@ -125,7 +125,7 @@ func (s *Store) RunsForSite(ctx context.Context, siteID int64, limit int) ([]Run
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Run
 	for rows.Next() {
 		var r Run
@@ -163,7 +163,7 @@ func (s *Store) PruneSiteNow(ctx context.Context, siteID int64) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	var dropped int64
 	res, err := tx.ExecContext(ctx,
 		`DELETE FROM runs WHERE site_id=? AND id NOT IN (
@@ -187,7 +187,7 @@ func (s *Store) PruneSiteNow(ctx context.Context, siteID int64) (int64, error) {
 
 func must(res sql.Result) int64 { n, _ := res.RowsAffected(); return n }
 
-// DetailJSON returns the pretty-printed detail payload of a run.
+// PrettyDetail returns the pretty-printed detail payload of a run.
 func PrettyDetail(r *Run) (string, error) {
 	var v any
 	if err := json.Unmarshal([]byte(r.DetailJSON), &v); err != nil {

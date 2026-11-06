@@ -31,9 +31,9 @@
 <tbody><template x-for="s in monitored()"><tr>
     <td><a href="#" @click.prevent="open(s.key)" x-text="s.label||s.key"></a></td>
     <td class=mono x-text="s.schedule||'manual'"></td>
-    <td class=mono><template x-if="mcell(s,'ttfb')"><img class=badge-img x-bind:src="'/badges/ttfb-'+mcell(s,'ttfb').band+'.svg'"></template> <span x-text="mcell(s,'ttfb').text"></span></td>
-    <td class=mono><template x-if="mcell(s,'lcp')"><img class=badge-img x-bind:src="'/badges/lcp-'+mcell(s,'lcp').band+'.svg'"></template> <span x-text="mcell(s,'lcp').text"></span></td>
-    <td class=mono><template x-if="mcell(s,'cls')"><img class=badge-img x-bind:src="'/badges/cls-'+mcell(s,'cls').band+'.svg'"></template> <span x-text="mcell(s,'cls').text"></span></td>
+    <td class=mono><template x-if="mcell(s,'ttfb').ok"><img class=badge-img x-bind:src="'/badges/ttfb-'+mcell(s,'ttfb').band+'.svg'"></template> <span x-text="mcell(s,'ttfb').text"></span></td>
+    <td class=mono><template x-if="mcell(s,'lcp').ok"><img class=badge-img x-bind:src="'/badges/lcp-'+mcell(s,'lcp').band+'.svg'"></template> <span x-text="mcell(s,'lcp').text"></span></td>
+    <td class=mono><template x-if="mcell(s,'cls').ok"><img class=badge-img x-bind:src="'/badges/cls-'+mcell(s,'cls').band+'.svg'"></template> <span x-text="mcell(s,'cls').text"></span></td>
     <td style="white-space:nowrap">
       <button class="button is-small is-primary" @click="scanSite(s)" x-bind:disabled="busy">scan</button>
       <button class="button is-small" @click="editSite(s)">edit</button>
@@ -84,7 +84,7 @@
   <div class=detail-top>
     <template x-if="last[sel]"><div class="metric-grid">
       <template x-for="m in metricCards()"><div class="metric-cell" x-bind:title="m.title">
-        <img class=badge-img x-show="m.id" x-bind:src="'/badges/'+m.id+'-'+m.band+'.svg'">
+        <img class=badge-img x-show="m.id" x-bind:src="m.id?('/badges/'+m.id+'-'+m.band+'.svg'):''">
         <div class="metric-val mono"><img class=comp-icon x-show="m.icon" x-bind:src="m.icon" alt=""><span x-text="m.text"></span></div>
         <template x-if="m.lines"><div class=proto-lines>
           <template x-for="ln in m.lines"><div class=mono>

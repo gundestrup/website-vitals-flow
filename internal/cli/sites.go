@@ -36,7 +36,7 @@ func sitesCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer st.Close()
+			defer func() { _ = st.Close() }()
 			key, canon, err := sitekey.From(args[0])
 			if err != nil {
 				return err
@@ -74,20 +74,20 @@ func sitesCmd() *cobra.Command {
 
 	list := &cobra.Command{
 		Use: "list", Short: "List sites",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			st, _, err := openStore(cfgPath)
 			if err != nil {
 				return err
 			}
-			defer st.Close()
+			defer func() { _ = st.Close() }()
 			sites, err := st.ListSites(ctx0)
 			if err != nil {
 				return err
 			}
 			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-			fmt.Fprintln(w, "KEY\tURL\tSCHEDULE\tKEEP\tAGE\tDEEP\tONLY")
+			_, _ = fmt.Fprintln(w, "KEY\tURL\tSCHEDULE\tKEEP\tAGE\tDEEP\tONLY")
 			for _, s := range sites {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%dd\t%v\t%s\n",
+				_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%dd\t%v\t%s\n",
 					s.Key, s.URL, s.Schedule, s.KeepLast, s.MaxAgeDays, s.Deep, s.Only)
 			}
 			return w.Flush()
@@ -95,12 +95,12 @@ func sitesCmd() *cobra.Command {
 	}
 	rm := &cobra.Command{
 		Use: "remove <key>", Short: "Delete a site and its runs", Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			st, _, err := openStore(cfgPath)
 			if err != nil {
 				return err
 			}
-			defer st.Close()
+			defer func() { _ = st.Close() }()
 			key, _, err := sitekey.From(args[0])
 			if err != nil {
 				return err
@@ -122,12 +122,12 @@ func pruneCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "prune",
 		Short: "Apply retention rules now (all sites or --site)",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			st, _, err := openStore(cfgPath)
 			if err != nil {
 				return err
 			}
-			defer st.Close()
+			defer func() { _ = st.Close() }()
 			sites, err := st.ListSites(ctx0)
 			if err != nil {
 				return err
@@ -162,7 +162,7 @@ func reportCmd() *cobra.Command {
 		Use:   "report <id>",
 		Short: "Show a stored run's detail",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			var id int64
 			if _, err := fmt.Sscanf(args[0], "%d", &id); err != nil {
 				return fmt.Errorf("bad run id %q", args[0])
@@ -171,7 +171,7 @@ func reportCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer st.Close()
+			defer func() { _ = st.Close() }()
 			r, err := st.RunByID(ctx0, id)
 			if err != nil {
 				return err

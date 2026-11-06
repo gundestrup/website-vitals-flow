@@ -85,8 +85,8 @@ func Probe(ctx context.Context, rawurl string) (*Result, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fetch %s: %w", rawurl, err)
 	}
-	io.Copy(io.Discard, lastResp.Body)
-	lastResp.Body.Close()
+	_, _ = io.Copy(io.Discard, lastResp.Body)
+	_ = lastResp.Body.Close()
 	res.Status = lastResp.StatusCode
 	res.FinalURL = lastResp.Request.URL.String()
 	res.Redirects = redirects
@@ -128,7 +128,7 @@ func probeBasics(ctx context.Context, client *http.Client, finalURL string) map[
 			out[p] = 0
 			continue
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		out[p] = resp.StatusCode
 	}
 	return out
@@ -151,7 +151,7 @@ func probeEncoding(ctx context.Context, client *http.Client, url, enc string) *E
 		p.Error = err.Error()
 		return p
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	n, _ := io.CopyN(io.Discard, resp.Body, 8<<20)
 	p.Bytes = n
 	if cl := resp.Header.Get("Content-Length"); cl != "" {

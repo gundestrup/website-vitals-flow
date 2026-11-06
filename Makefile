@@ -15,8 +15,20 @@ vet:
 jscheck:
 	@test ! -d internal/server/static || find internal/server/static -name '*.js' -exec node --check {} \;
 
-check: vet test build jscheck
+uiqa:
+	@sh scripts/uiqa.sh
+
+lint:
+	@command -v golangci-lint >/dev/null 2>&1 || { echo "golangci-lint not installed — skipped"; exit 0; }
+	@golangci-lint run ./...
+
+check: vet test lint build jscheck uiqa
 	@echo "check ok"
+
+# smoke: load the dashboard headless, fail on console errors —
+# catches runtime binding bugs node --check can't see
+smoke: build
+	@echo "listen: '127.0.0.1:8421'" > /tmp/wvf-smoke.yml ; 	(./bin/wvf serve --config /tmp/wvf-smoke.yml >/tmp/wvf-smoke.log 2>&1 &) ; 	sleep 2 ; 	go run ./scripts/smoke http://127.0.0.1:8421 ; rc=$$? ; 	pkill -f "serve --config /tmp/wvf-smoke.yml" ; exit $$rc
 
 coverage-ci:
 	go test -race -coverpkg=./... -coverprofile=coverage.out ./...
