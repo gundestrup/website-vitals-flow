@@ -7,12 +7,28 @@ All notable changes to website-vitals-flow. Format loosely follows
 
 ### Added
 
-- PSI layer (`internal/psi`): `--psi` flag, field-data p75 + lab metrics,
-  `psi_key`/`WVF_PSI_KEY` config; fails clean when quota-limited
-- `sites add --deep`: site-level deep flag (schema v4) — scheduler and
-  scan-now honor it; `{"deep": true}` on `/api/scan` is a per-request
-  override (jobs.deep)
-- Lighthouse verified end-to-end: score + findings into detail_json
+- **MCP over HTTP**: `POST /mcp` Streamable-HTTP transport sharing the
+  stdio Dispatcher; scans route through the serve Runner (single-slot);
+  `{"url": "…/mcp"}` client config
+- **Page scanning**: `jobs.page` (schema v7), `scan-now {page}`,
+  `GET /api/sites/{key}/pages` (sitemap-derived paths + free input),
+  `page <path>` tag on reports; dashboard Pages section
+- **SSE live jobs**: `GET /api/jobs/stream` — job list pushed on change;
+  dashboard EventSource replaces 3s polling
+- **Compression serving**: gzip + brotli (`andybalholm/brotli`) response
+  middleware — dogfooded from our own `brotli not negotiated` finding
+- **Theme + i18n**: auto/light/dark toggle (localStorage + prefers-color-
+  scheme) and en/da UI dictionary
+- **SwiftBar plugin** (`scripts/swiftbar/`): menubar status/jobs/scan-all/
+  start-stop + self-verifying install/uninstall + lifecycle tests
+- **Serve self-replace**: `wvf serve` terminates a lingering `wvf serve`
+  on the same port (non-wvf listeners untouched)
+- **Version stamping**: `git describe` via ldflags → `wvf version`
+- Module renamed `forgejo…` → `github.com/gundestrup` (real remote);
+  report shell via shared `layout.tmpl` (html/template)
+- Console capture, shared `internal/pipeline`, scan-all endpoint/buttons,
+  full lint stack (biome/html-validate/markdownlint/yaml/uiqa/smoke),
+  quality gates, docs screenshots — see commits 0db463b…38fa645
 
 ### Fixed
 
@@ -22,6 +38,36 @@ All notable changes to website-vitals-flow. Format loosely follows
 - Attribution collection ran on the browser context (about:blank) —
   now opens its own navigated tab; added synthetic `visibilitychange`
   flush and poll-until-populated
+
+- Site keys containing `/` (self-scan detail URLs) broke
+  `/api/sites/{key}/runs` → `load()` aborted → cards vanished —
+  `encodeURIComponent` on key interpolation
+- `loadPages`/`scanPage` call sites without definitions → `open()` catch
+  nulled `det` → shot card + findings hidden
+- Sitemap `<loc>` absolute URLs parsed via `url.Parse(loc).Path`
+- Console card `id` fetched nonexistent `/badges/console-*.svg` — `id:''`
+- gzip middleware buffered SSE + dropped `http.Flusher` — skipped on
+  `Accept: text/event-stream`, `Flush()` passthrough
+- Selects wrapped per Bulma `<div class="select">` pattern; `job-meta`
+  span→div (block-in-inline); report inline styles → utility classes
+- Stored XSS in report (findings/console text now `html.EscapeString`'d);
+  semgrep/gosec annotations on justified sites
+- `keepLast=0` prunes immediately — surfaced by new report test
+
+### Tests
+
+- `TestPageScan` (scan-now page + sitemap endpoint), `TestSSEAndGzip`,
+  `TestReportPageTag`, `TestMCPOverHTTP`, `TestJobPageRoundTrip`,
+  score badge/metric, config load — all `-race` green
+
+### Added (earlier unreleased)
+
+- PSI layer (`internal/psi`): `--psi` flag, field-data p75 + lab metrics,
+  `psi_key`/`WVF_PSI_KEY` config; fails clean when quota-limited
+- `sites add --deep`: site-level deep flag (schema v4) — scheduler and
+  scan-now honor it; `{"deep": true}` on `/api/scan` is a per-request
+  override (jobs.deep)
+- Lighthouse verified end-to-end: score + findings into detail_json
 
 ## 0.1.0 — 2026-11-04 (initial working system)
 
@@ -57,7 +103,7 @@ All notable changes to website-vitals-flow. Format loosely follows
 
 - Vendored bulma + alpine-csp + chart.js (no CDN, CSP-safe)
 - Site list + last-run metrics + scan-now; per-engine trend charts
-- `scan --html` self-contained report (__REPORT_DATA__ injection)
+- `scan --html` self-contained report (`__REPORT_DATA__` injection)
 
 ### Phase 6: deep engines
 

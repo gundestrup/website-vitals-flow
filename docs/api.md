@@ -28,6 +28,26 @@ Sync response: `{"job": 3, "site": "localhost:3000", "state": "done",
 
 ### `POST /api/scan-now`
 
+`{key, deep, only, page}` — `page` scans a sub-path
+(`site.URL + "/" + page`); report shows `page <path>`.
+
+### `POST /api/scan-all`
+
+`{deep}` — enqueues a scan for every monitored site (schedule set).
+`deep=true` forces deep mode for all. Returns `{"enqueued": N}`.
+
+### `GET /api/sites/{key}/pages`
+
+Sitemap-derived path list for page scanning — parses the site's
+`sitemap.xml` `<loc>`s into paths (falls back to `["/"]`). Any path may
+be passed to `scan-now {page}` even if not in the sitemap.
+
+### `GET /api/jobs/stream`
+
+SSE stream — pushes the full jobs list whenever it changes (1s tick,
+deltas only). Dashboard uses `EventSource`; never gzip/br-compressed.
+REST `/api/jobs` remains for snapshot clients.
+
 `{"key": "localhost:3000"}` → `{"job": N}` — uses the site's `deep` flag.
 
 ## Read
