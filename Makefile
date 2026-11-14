@@ -39,15 +39,21 @@ yamlcheck:
 	done && echo "yamlcheck ok"
 
 lint:
-	@command -v golangci-lint >/dev/null 2>&1 || { echo "golangci-lint not installed — skipped"; exit 0; }
-	@golangci-lint run ./...
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run ./...; \
+	else \
+		echo "golangci-lint not installed — skipped"; \
+	fi
 
 # semgrep: SAST gate — community rules; a logged-in CLI (semgrep login)
 # also pulls Pro rules. Scan scope lives in .semgrepignore (it REPLACES
 # the built-in default list, so the defaults are re-declared there).
 semgrep:
-	@command -v semgrep >/dev/null 2>&1 || { echo "semgrep not installed — skipped"; exit 0; }
-	@semgrep scan --config auto --error --quiet && echo "semgrep ok"
+	@if command -v semgrep >/dev/null 2>&1; then \
+		semgrep scan --config auto --error --quiet && echo "semgrep ok"; \
+	else \
+		echo "semgrep not installed — skipped"; \
+	fi
 
 check: vet test lint build jscheck uiqa webcheck mdcheck yamlcheck sbtest semgrep
 	@echo "check ok"
