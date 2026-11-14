@@ -42,17 +42,24 @@ func Find(explicit string) (path, version string, err error) {
 	if home, herr := os.UserHomeDir(); herr == nil {
 		managed := filepath.Join(home, ".cache", "wvf", headlessShell, headlessShell)
 		if _, statErr := os.Stat(managed); statErr == nil {
-			return managed, probeVersion(managed), nil
+			if v := probeVersion(managed); v != "unknown" {
+				return managed, v, nil
+			}
 		}
 	}
 	for _, c := range candidates {
 		if _, statErr := os.Stat(c); statErr == nil {
-			return c, probeVersion(c), nil
+			// skip stubs that exist but can't run (e.g. snap placeholders)
+			if v := probeVersion(c); v != "unknown" {
+				return c, v, nil
+			}
 		}
 	}
 	for _, name := range pathNames {
 		if p, lookErr := exec.LookPath(name); lookErr == nil {
-			return p, probeVersion(p), nil
+			if v := probeVersion(p); v != "unknown" {
+				return p, v, nil
+			}
 		}
 	}
 	return "", "", fmt.Errorf("no chrome/chromium found (checked %d paths + PATH); set browser_path or WVF_BROWSER_PATH", len(candidates))

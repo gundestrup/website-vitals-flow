@@ -129,11 +129,23 @@ func cfgForTest(dir string) config.Config {
 
 // TestScanIntegration exercises the real scan path — chrome launch,
 // measure.Run, pipeline checks, persist — against a local server.
-// Skips when no Chrome/Chromium is available.
+// Skips when no usable Chrome is available (absent, or a stub that
+// can't actually launch — e.g. snap placeholders on CI).
 func TestScanIntegration(t *testing.T) {
-	if _, _, err := chrome.Find(""); err != nil {
+	bin, _, err := chrome.Find("")
+	if err != nil {
 		t.Skipf("no chrome available: %v", err)
 	}
+	// capability probe, not just presence — a binary that can't launch
+	// is no better than none.
+	lctx, lcancel := context.WithTimeout(context.Background(), 15*time.Second)
+	_, stop, lerr := chrome.Launch(lctx, bin)
+	if lerr != nil {
+		lcancel()
+		t.Skipf("chrome found but won't launch: %v", lerr)
+	}
+	stop()
+	lcancel()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html")

@@ -51,6 +51,31 @@ func TestFindExplicitNonExecutable(t *testing.T) {
 	}
 }
 
+func TestFindSkipsBrokenCandidate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fake is POSIX-only")
+	}
+	// a stub that exists and is executable but dies on --version —
+	// the snap-placeholder case; Find must skip to a working browser.
+	stub := filepath.Join(t.TempDir(), "stubchrome")
+	if err := os.WriteFile(stub, []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil { // #nosec G306 -- fixture must exec
+		t.Fatal(err)
+	}
+	old := candidates
+	candidates = append([]string{stub}, candidates...)
+	defer func() { candidates = old }()
+	path, ver, err := Find("")
+	if err != nil {
+		t.Skipf("no working chrome on this host: %v", err)
+	}
+	if path == stub {
+		t.Fatal("Find picked the broken stub")
+	}
+	if ver == "unknown" {
+		t.Fatalf("Find returned a binary that can't report a version: %q", path)
+	}
+}
+
 func TestFindDiscovery(t *testing.T) {
 	// environment-dependent: either a browser is found (path must exist)
 	// or the error names how to fix it. Both are valid outcomes.

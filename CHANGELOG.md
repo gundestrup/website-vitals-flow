@@ -39,6 +39,10 @@ All notable changes to website-vitals-flow. Format loosely follows
   `config` env overrides, `store` max-age retention + error paths
 - `make release` now stamps `-X cli.version` into dist binaries
   (previously reported `wvf dev`); v0.2.0 assets rebuilt
+- `chrome.Find` no longer returns the first candidate that merely
+  exists — managed/candidate/PATH binaries must answer `--version`,
+  skipping unlaunchable stubs (e.g. snap placeholders on Ubuntu CI)
+  in favour of a real browser; explicit `browser_path` unchanged
 - `buildCards` split into per-card helpers — SonarLint complexity 47→<15
 - Docs: `jobs`/`version` commands, full `make check` gate list, `settle`
   is a scan flag not a wvf.yml key, site mutation + badge endpoints in
