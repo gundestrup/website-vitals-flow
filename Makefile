@@ -16,7 +16,7 @@ jscheck:
 	@test ! -d internal/server/static || find internal/server/static -name '*.js' -exec node --check {} \;
 
 uiqa:
-	@sh scripts/uiqa.sh
+	@bash scripts/uiqa.sh
 
 # webcheck: real linters on first-party assets — biome (js/css lint),
 # html-validate (html semantics); vendored files excluded by config.
@@ -28,7 +28,7 @@ webcheck:
 
 # swiftbar plugin lifecycle: states + install/uninstall
 sbtest:
-	@sh scripts/swiftbar/test.sh
+	@bash scripts/swiftbar/test.sh
 
 mdcheck:
 	@test ! -d node_modules/markdownlint-cli2 || ./node_modules/.bin/markdownlint-cli2 "*.md" "docs/**/*.md" > /dev/null && echo "mdcheck ok"

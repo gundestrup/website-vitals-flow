@@ -70,7 +70,10 @@ All notable changes to website-vitals-flow. Format loosely follows
   only exited the recipe line's subshell so the tool ran anyway (exit
   127 on minimal environments); all three now self-skip correctly, and
   `release.yml` runs `npm ci` so the node-backed gates execute instead
-  of silently skipping on the release runner
+  of silently skipping on the release runner; Makefile now invokes
+  `uiqa`/`sbtest` scripts with `bash` instead of `sh` — the scripts are
+  bash (`[[ ]]`) but `sh` is dash on Debian/Ubuntu, which broke
+  `make release` on the release runner
 - Docs: `jobs`/`version` commands, full `make check` gate list, `settle`
   is a scan flag not a wvf.yml key, site mutation + badge endpoints in
   api.md, License section
