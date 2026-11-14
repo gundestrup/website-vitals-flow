@@ -43,6 +43,12 @@ All notable changes to website-vitals-flow. Format loosely follows
   exists — managed/candidate/PATH binaries must answer `--version`,
   skipping unlaunchable stubs (e.g. snap placeholders on Ubuntu CI)
   in favour of a real browser; explicit `browser_path` unchanged
+- `chrome.Launch` adds `--no-sandbox` only under `$CI` — stock runners
+  lack kernel user namespaces so Chrome dies silently; local launches
+  keep the sandbox
+- Job polling (`awaitJob`/`pollJob`) no longer surfaces
+  "context canceled" tool errors when the client disconnects mid-poll
+  — retries once on a fresh context and reports the job's real state
 - `buildCards` split into per-card helpers — SonarLint complexity 47→<15
 - Docs: `jobs`/`version` commands, full `make check` gate list, `settle`
   is a scan flag not a wvf.yml key, site mutation + badge endpoints in

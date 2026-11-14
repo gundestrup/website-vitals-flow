@@ -497,6 +497,18 @@ func (s *Server) waitJob(w http.ResponseWriter, r *http.Request, jobID int64, wa
 // response was written (store error or terminal job state).
 func (s *Server) pollJob(w http.ResponseWriter, r *http.Request, jobID int64, resp map[string]any) bool {
 	j, runID, err := s.st.JobByID(r.Context(), jobID)
+	if err != nil && r.Context().Err() != nil {
+		// client gone mid-poll — retry once on a fresh short context;
+		// if that also fails, fall back to the accumulated resp state
+		// rather than an error nobody will read
+		fresh, stop := context.WithTimeout(context.Background(), 5*time.Second)
+		j, runID, err = s.st.JobByID(fresh, jobID)
+		stop()
+		if err != nil {
+			writeJSON(w, resp, nil)
+			return true
+		}
+	}
 	if err != nil {
 		writeJSON(w, nil, err)
 		return true
@@ -594,11 +606,28 @@ func (s *Server) scanViaRunner(ctx context.Context, a mcpserver.ScanArgs) (map[s
 // going" rather than an error.
 func (s *Server) awaitJob(ctx context.Context, jobID int64) (*store.Job, int64, error) {
 	deadline := time.Now().Add(mcpWait)
+	var j *store.Job
+	var runID int64
 	for {
-		j, runID, err := s.st.JobByID(ctx, jobID)
+		jj, rid, err := s.st.JobByID(ctx, jobID)
+		if err != nil && ctx.Err() != nil {
+			// client left mid-poll — the job's state didn't change
+			// with it, so retry once on a fresh short context; the
+			// caller still wants the queued-job report
+			fresh, stop := context.WithTimeout(context.Background(), 5*time.Second)
+			jj, rid, err = s.st.JobByID(fresh, jobID)
+			stop()
+			if err == nil {
+				return jj, rid, nil
+			}
+			if j != nil {
+				return j, runID, nil
+			}
+		}
 		if err != nil {
 			return nil, 0, err
 		}
+		j, runID = jj, rid
 		if j.State == "done" || j.State == "failed" ||
 			time.Now().After(deadline) {
 			return j, runID, nil

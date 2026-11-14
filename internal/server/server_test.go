@@ -222,7 +222,7 @@ func TestMCPOverHTTP(t *testing.T) {
 	}
 	var payload map[string]any
 	if err := json.Unmarshal([]byte(mcpText(t, resp)), &payload); err != nil {
-		t.Fatal(err)
+		t.Fatalf("%v — full response: %v", err, resp)
 	}
 	if payload["site"] != "scan.test:9" || payload["job"] == nil ||
 		payload["state"] != "queued" {
