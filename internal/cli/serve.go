@@ -61,6 +61,17 @@ func serveCmd() *cobra.Command {
 	return cmd
 }
 
+// firstBin returns the first existing absolute path — fixed locations
+// only, no PATH lookup (S4036).
+func firstBin(paths ...string) string {
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
+}
+
 // replaceStaleServe terminates a previous `wvf serve` still bound to the
 // same address — the lingering-process case seen after rebuilds. A
 // non-wvf listener is left alone; ListenAndServe will error normally.
@@ -69,7 +80,12 @@ func replaceStaleServe(addr string) {
 	if err != nil || port == "" {
 		return
 	}
-	out, err := exec.Command("lsof", "-ti", "tcp:"+port, "-sTCP:LISTEN").Output() // #nosec G204 NOSONAR -- fixed binary, numeric port; lsof location varies by OS
+	lsof := firstBin("/usr/sbin/lsof", "/usr/bin/lsof", "/bin/lsof")
+	ps := firstBin("/bin/ps", "/usr/bin/ps")
+	if lsof == "" || ps == "" {
+		return
+	}
+	out, err := exec.Command(lsof, "-ti", "tcp:"+port, "-sTCP:LISTEN").Output() // #nosec G204 nosemgrep -- lsof from firstBin fixed paths, numeric port
 	if err != nil || len(out) == 0 {
 		return
 	}
@@ -78,7 +94,7 @@ func replaceStaleServe(addr string) {
 		if err != nil {
 			continue
 		}
-		args, _ := exec.Command("ps", "-p", fs, "-o", "command=").Output() // #nosec G204 NOSONAR -- fixed binary, numeric pid; ps location varies by OS
+		args, _ := exec.Command(ps, "-p", fs, "-o", "command=").Output() // #nosec G204 nosemgrep -- ps from firstBin fixed paths, numeric pid
 		if !strings.Contains(string(args), "wvf serve") {
 			continue
 		}
