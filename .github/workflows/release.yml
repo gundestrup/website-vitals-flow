@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Build and publish binaries
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27"
+          cache: true
+
+      - name: Install Semgrep
+        run: pipx install semgrep==1.185.0
+
+      # wvf's version is the tag itself (git describe → ldflags) — the
+      # changelog heading is the single release-commitment check.
+      - name: Verify changelog has the release heading
+        run: grep -q "^## ${GITHUB_REF_NAME#v} —" CHANGELOG.md
+
+      - name: Run release checks and build all platforms
+        run: make release VERSION="$GITHUB_REF_NAME"
+
+      - name: Upload binaries to GitHub release
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
+        with:
+          files: |
+            dist/wvf-*
+            dist/SHA256SUMS

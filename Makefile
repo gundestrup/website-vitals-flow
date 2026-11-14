@@ -73,7 +73,7 @@ release: check
 	  os=$${p%/*}; arch=$${p#*/}; \
 	  out=dist/wvf-$(VERSION)-$$os-$$arch; \
 	  [ "$$os" = windows ] && out=$$out.exe; \
-	  CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "-s -w" -o $$out ./cmd/wvf; \
+	  CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "-s -w -X github.com/gundestrup/website-vitals-flow/internal/cli.version=$(VERSION)" -o $$out ./cmd/wvf; \
 	  echo built $$out; \
 	done
 	@cd dist && shasum -a 256 wvf-* > SHA256SUMS && echo "sha256sums in dist/"
