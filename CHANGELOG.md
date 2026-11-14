@@ -5,6 +5,8 @@ All notable changes to website-vitals-flow. Format loosely follows
 
 ## Unreleased
 
+## 0.2.0 — 2026-11-14
+
 ### Added
 
 - **MCP over HTTP**: `POST /mcp` Streamable-HTTP transport sharing the
@@ -53,6 +55,18 @@ All notable changes to website-vitals-flow. Format loosely follows
 - Stored XSS in report (findings/console text now `html.EscapeString`'d);
   semgrep/gosec annotations on justified sites
 - `keepLast=0` prunes immediately — surfaced by new report test
+
+### Security
+
+- Dev-tool dep upgrades clearing all npm audit + Dependabot +
+  Semgrep supply-chain findings: `markdownlint-cli2` ^0.24.0
+  (js-yaml 4.1.0→5.x, markdown-it 14.1.0→15.x, markdownlint 0.42),
+  `yaml` ^2.9.1, `katex` ≥0.18.2 via `overrides`
+- h3 probe `tls.Config` pins `MinVersion: TLS 1.3` (QUIC floor anyway)
+- CI actions pinned to release SHAs (checkout v7.0.1, setup-go v7.0.0)
+- `#nosec`/`nosemgrep` annotations on remaining justified audit sites;
+  `mdcheck` uses the linter's exit code (new summary format)
+- `buildCards` split into per-card helpers — SonarLint complexity 47→<15
 
 ### Tests
 

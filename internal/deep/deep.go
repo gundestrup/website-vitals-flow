@@ -333,7 +333,7 @@ func AvifEncode(ctx context.Context, bin string, in []byte) ([]byte, error) {
 	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	// #nosec G204 -- bin is the avifenc path from FindAvifenc (LookPath).
-	out, err := exec.CommandContext(cctx, bin,
+	out, err := exec.CommandContext(cctx, bin, // nosemgrep -- argv exec, no shell
 		"--speed", "8", "--min", "35", "--max", "45", src, dst).CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("avifenc: %w (%s)", err, out)

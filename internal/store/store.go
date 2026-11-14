@@ -125,7 +125,8 @@ func (s *Store) migrate(ctx context.Context) error {
 			return err
 		}
 	}
-	if _, err := s.db.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version=%d", schemaVersion)); err != nil {
+	// #nosec G201 -- schemaVersion is a compile-time const; PRAGMA can't bind.
+	if _, err := s.db.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version=%d", schemaVersion)); err != nil { // nosemgrep -- const schemaVersion; PRAGMA can't take bind params
 		return fmt.Errorf("stamp user_version: %w", err)
 	}
 	return nil

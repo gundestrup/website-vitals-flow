@@ -31,7 +31,7 @@ sbtest:
 	@sh scripts/swiftbar/test.sh
 
 mdcheck:
-	@test ! -d node_modules/markdownlint-cli2 || ./node_modules/.bin/markdownlint-cli2 "*.md" "docs/**/*.md" | tail -1 | grep -q "0 error" && echo "mdcheck ok"
+	@test ! -d node_modules/markdownlint-cli2 || ./node_modules/.bin/markdownlint-cli2 "*.md" "docs/**/*.md" > /dev/null && echo "mdcheck ok"
 
 yamlcheck:
 	@for f in .golangci.yml .github/workflows/ci.yml; do \

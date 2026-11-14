@@ -67,6 +67,7 @@ func (s *Server) render(w http.ResponseWriter, page string, vm any) {
 		return
 	}
 	w.Header().Set(hdrContentType, ctHTML)
+	// nosemgrep -- template-escaped HTML rendered into buf above
 	_, _ = w.Write(buf.Bytes())
 }
 
@@ -355,8 +356,14 @@ func buildCards(r *store.Run, d *measure.Result, stale string) []metricCard {
 	ms("lcp", r.LCPms, "LCP")
 	ms("cls", &r.CLS, "CLS")
 	ms("tbt", &r.TBTms, "TBT")
+	return append(cards,
+		pageSizeCard(r, d, stale), protoCard(r, d, stale),
+		compCard(d, stale), tlsCard(d, stale), cacheCard(d, stale),
+		consoleCard(d, stale))
+}
 
-	// page size: requests / weight / DOM per load
+// pageSizeCard: requests / weight / DOM per load
+func pageSizeCard(r *store.Run, d *measure.Result, stale string) metricCard {
 	dom := "-"
 	if smp := lastSample(d); smp != nil {
 		dom = fmt.Sprintf("%d nodes", smp.DOMNodes)
@@ -365,7 +372,7 @@ func buildCards(r *store.Run, d *measure.Result, stale string) []metricCard {
 	if r.PageBytes > 0 {
 		weight = fmt.Sprintf("%dKB", int64(math.Round(float64(r.PageBytes)/1024)))
 	}
-	cards = append(cards, metricCard{Band: "na", Label: "page size",
+	return metricCard{Band: "na", Label: "page size",
 		Title: "requests / weight / DOM per load", Age: stale,
 		Lines: []cardLine{
 			{Label: fmt.Sprintf("%d requests", r.RequestCount),
@@ -374,9 +381,11 @@ func buildCards(r *store.Run, d *measure.Result, stale string) []metricCard {
 				Title: "total transferred page weight"},
 			{Img: "/icons/dom-svgrepo-com.svg", Label: dom,
 				Title: "DOM node count"},
-		}})
+		}}
+}
 
-	// protocol: h3 advertised / h2 negotiated / h1.1 baseline
+// protoCard: h3 advertised / h2 negotiated / h1.1 baseline
+func protoCard(r *store.Run, d *measure.Result, stale string) metricCard {
 	var h3adv bool
 	var hcProto string
 	if d != nil {
@@ -406,15 +415,17 @@ func buildCards(r *store.Run, d *measure.Result, stale string) []metricCard {
 	case nSup == 1:
 		pband = "poor"
 	}
-	cards = append(cards, metricCard{ID: "proto", Band: pband,
+	return metricCard{ID: "proto", Band: pband,
 		Label: "protocol", Age: stale,
 		Lines: []cardLine{
 			{Icon: iconFor(h3ok), Label: "HTTP/3", Title: "HTTP/3 (QUIC)"},
 			{Icon: iconFor(h2ok), Label: "HTTP/2", Title: "HTTP/2"},
 			{Icon: iconFor(h1ok), Label: "HTTP/1.1", Title: "HTTP/1.1 (baseline)"},
-		}})
+		}}
+}
 
-	// compression encodings offered by the server
+// compCard: compression encodings offered by the server
+func compCard(d *measure.Result, stale string) metricCard {
 	encOk := func(k string) bool {
 		return d != nil && d.HTTP != nil &&
 			d.HTTP.Encodings[k] != nil && d.HTTP.Encodings[k].OK
@@ -425,7 +436,7 @@ func buildCards(r *store.Run, d *measure.Result, stale string) []metricCard {
 	} else if encOk("gzip") {
 		cband = "ok"
 	}
-	cards = append(cards, metricCard{ID: "comp", Band: cband,
+	return metricCard{ID: "comp", Band: cband,
 		Label: "compression", Age: stale,
 		Title: "compression encodings offered by the server",
 		Lines: []cardLine{
@@ -435,9 +446,11 @@ func buildCards(r *store.Run, d *measure.Result, stale string) []metricCard {
 				Label: "gzip", Title: "gzip"},
 			{Img: "/icons/zstd.svg", Icon: iconFor(encOk("zstd")),
 				Label: "zstd", Title: "Zstandard"},
-		}})
+		}}
+}
 
-	// TLS version negotiated
+// tlsCard: TLS version negotiated
+func tlsCard(d *measure.Result, stale string) metricCard {
 	tls := ""
 	if d != nil && d.HTTP != nil {
 		tls = d.HTTP.TLSVersion
@@ -452,12 +465,14 @@ func buildCards(r *store.Run, d *measure.Result, stale string) []metricCard {
 	if ttext == "" {
 		ttext = "-"
 	}
-	cards = append(cards, metricCard{ID: "tls", Band: tband, Text: ttext,
-		Label: "TLS", Title: "TLS version negotiated", Age: stale})
+	return metricCard{ID: "tls", Band: tband, Text: ttext,
+		Label: "TLS", Title: "TLS version negotiated", Age: stale}
+}
 
-	// cacheable: % of static assets — lines are the DOCUMENT page's
-	// cache/CDN header signals (a no-cache html is correct even when
-	// assets cache 100%).
+// cacheCard: % of static assets — lines are the DOCUMENT page's
+// cache/CDN header signals (a no-cache html is correct even when
+// assets cache 100%).
+func cacheCard(d *measure.Result, stale string) metricCard {
 	var tot, cacheN int
 	var sig map[string]bool
 	if d != nil && d.HTTP != nil {
@@ -491,11 +506,13 @@ func buildCards(r *store.Run, d *measure.Result, stale string) []metricCard {
 		sigLines = append(sigLines, cardLine{Icon: iconFor(sig[sl.key]),
 			Label: sl.key, Title: sl.title})
 	}
-	cards = append(cards, metricCard{ID: "cache", Band: cacheBand,
+	return metricCard{ID: "cache", Band: cacheBand,
 		Text: cacheText, Label: "cacheable", Age: stale,
-		Title: "share of responses marked cacheable", Lines: sigLines})
+		Title: "share of responses marked cacheable", Lines: sigLines}
+}
 
-	// console: first messages as card lines; full list below the fold
+// consoleCard: first messages as card lines; full list below the fold
+func consoleCard(d *measure.Result, stale string) metricCard {
 	var con []measure.ConsoleEntry
 	if smp := lastSample(d); smp != nil {
 		con = smp.Console
@@ -530,10 +547,9 @@ func buildCards(r *store.Run, d *measure.Result, stale string) []metricCard {
 		conLines = append(conLines, cardLine{Icon: icon,
 			Label: truncate(c.Kind+": "+c.Text, 34), Title: c.Text})
 	}
-	cards = append(cards, metricCard{Band: conBand, Text: conText,
+	return metricCard{Band: conBand, Text: conText,
 		Label: "console", Age: stale, Lines: conLines,
-		Title: "console messages captured during page load — click Console section below for all"})
-	return cards
+		Title: "console messages captured during page load — click Console section below for all"}
 }
 
 // findingVMs dedups findings by id|title|detail — the same filter the

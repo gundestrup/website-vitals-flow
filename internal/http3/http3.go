@@ -35,7 +35,10 @@ func Probe(ctx context.Context, rawurl, altSvc string) *Result {
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 	tr := &http3.Transport{
-		TLSClientConfig: &tls.Config{ServerName: u.Hostname()},
+		TLSClientConfig: &tls.Config{
+			ServerName: u.Hostname(),
+			MinVersion: tls.VersionTLS13, // QUIC requires TLS 1.3
+		},
 	}
 	defer func() { _ = tr.Close() }()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+u.Host+"/", nil)

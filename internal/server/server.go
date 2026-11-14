@@ -218,6 +218,7 @@ func (s *Server) jobsStream(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			if b, err := json.Marshal(list); err == nil && string(b) != last {
 				last = string(b)
+				// nosemgrep -- SSE frame; b is json.Marshal output
 				_, _ = fmt.Fprintf(w, "data: %s\n\n", b)
 				fl.Flush()
 			}
@@ -534,6 +535,7 @@ func (s *Server) mcp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set(hdrContentType, "application/json")
+	// nosemgrep -- JSON-RPC response bytes from mcpserver.Dispatch
 	_, _ = w.Write(out)
 }
 

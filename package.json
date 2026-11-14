@@ -8,11 +8,14 @@
     "bulma": "^1.0.4",
     "chart.js": "^4.6.1",
     "html-validate": "^11.17.0",
-    "markdownlint-cli2": "^0.18.1",
-    "yaml": "^2.8.1"
+    "markdownlint-cli2": "^0.24.0",
+    "yaml": "^2.9.1"
   },
   "dependencies": {
     "web-vitals": "^6.2.3"
+  },
+  "overrides": {
+    "katex": "^0.18.2"
   },
   "scripts": {
     "gen:badges": "node scripts/gen_badges.mjs"

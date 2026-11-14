@@ -61,7 +61,9 @@ func Find(explicit string) (path, version string, err error) {
 func probeVersion(path string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 5_000_000_000)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, path, "--version").Output()
+	// #nosec G204 -- path is an operator-set browser_path, a managed-cache
+	// binary, a well-known candidate, or a LookPath result; argv exec, no shell.
+	out, err := exec.CommandContext(ctx, path, "--version").Output() // nosemgrep -- argv exec, no shell
 	if err != nil {
 		return "unknown"
 	}
