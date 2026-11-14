@@ -915,3 +915,57 @@ func TestAwaitJobFallbackLastSeen(t *testing.T) {
 		t.Fatal("awaitJob did not return after cancel")
 	}
 }
+
+// deadCtx reports cancelled (Err) but its Done channel never fires —
+// drives the JobByID-fails → fresh-ctx-retry path in awaitJob without
+// the poll select short-circuiting on ctx.Done().
+type deadCtx struct{ context.Context }
+
+func (deadCtx) Done() <-chan struct{} { return nil }
+func (deadCtx) Err() error            { return context.Canceled }
+
+// Poll succeeds once (job is queued), then the store dies — the next
+// JobByID errors, the fresh-context retry also fails on the dead
+// store, and awaitJob must fall back to the last-seen job (the
+// j != nil return inside the retry block).
+func TestAwaitJobRetryFailsLastSeen(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(ctx, t.TempDir()+"/t.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	site, err := st.GetOrCreateSite(ctx, "r.test", "http://r.test", 10, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobID, err := st.InsertJob(ctx, "scan", site.ID, false, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &Server{st: st}
+	type result struct {
+		j     *store.Job
+		runID int64
+		err   error
+	}
+	done := make(chan result, 1)
+	go func() {
+		j, rid, err := srv.awaitJob(deadCtx{ctx}, jobID)
+		done <- result{j, rid, err}
+	}()
+	// poll 1 succeeds; kill the store inside the 500ms wait so poll 2
+	// errors and the detached retry fails too
+	time.Sleep(200 * time.Millisecond)
+	_ = st.Close()
+	select {
+	case r := <-done:
+		if r.err != nil {
+			t.Fatalf("awaitJob: %v", r.err)
+		}
+		if r.j == nil || r.j.State != "queued" {
+			t.Fatalf("want last-seen queued job, got %+v", r.j)
+		}
+	case <-time.After(6 * time.Second):
+		t.Fatal("awaitJob did not return")
+	}
+}

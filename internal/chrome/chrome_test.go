@@ -167,3 +167,29 @@ func TestFindCandidateHit(t *testing.T) {
 		t.Fatalf("want fake candidate, got %s %q", path, ver)
 	}
 }
+
+// PATH hit: with no explicit path, no managed cache, and no existing
+// candidates, LookPath(pathNames) must find a working binary on PATH.
+func TestFindPathHit(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fake is POSIX-only")
+	}
+	t.Setenv("HOME", t.TempDir())
+	bin := t.TempDir()
+	fake := filepath.Join(bin, "chromium")
+	err := os.WriteFile(fake, []byte("#!/bin/sh\necho 'Chromium 998.0 path'\n"), 0o755) // #nosec G306 -- fixture must exec
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := candidates
+	candidates = []string{filepath.Join(t.TempDir(), "nonexistent")}
+	defer func() { candidates = old }()
+	t.Setenv("PATH", bin)
+	path, ver, err := Find("")
+	if err != nil {
+		t.Fatalf("Find: %v", err)
+	}
+	if path != fake || !strings.Contains(ver, "Chromium 998") {
+		t.Fatalf("want PATH hit %s, got %s %q", fake, path, ver)
+	}
+}
