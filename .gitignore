@@ -1,6 +1,7 @@
 bin/
 state.db*
 coverage.out
+coverage-js-lcov.info
 test-report.json
 report/
 node_modules/

@@ -61,14 +61,14 @@ check: vet test lint build jscheck uiqa webcheck mdcheck yamlcheck sbtest semgre
 # smoke: load the dashboard headless, fail on console errors —
 # catches runtime binding bugs node --check can't see
 smoke: build
-	@echo "listen: '127.0.0.1:8421'" > /tmp/wvf-smoke.yml ; 	(./bin/wvf serve --config /tmp/wvf-smoke.yml >/tmp/wvf-smoke.log 2>&1 &) ; 	sleep 2 ; 	go run ./scripts/smoke http://127.0.0.1:8421 ; rc=$$? ; 	pkill -f "serve --config /tmp/wvf-smoke.yml" ; exit $$rc
+	@echo "listen: '127.0.0.1:8421'" > /tmp/wvf-smoke.yml ; 	(./bin/wvf serve --config /tmp/wvf-smoke.yml >/tmp/wvf-smoke.log 2>&1 &) ; 	sleep 2 ; 	go run ./scripts/smoke -lcov coverage-js-lcov.info http://127.0.0.1:8421 ; rc=$$? ; 	pkill -f "serve --config /tmp/wvf-smoke.yml" ; exit $$rc
 
 coverage-ci:
 	go test -race -coverpkg=./... -coverprofile=coverage.out ./...
 	go test -json ./... > test-report.json || true
 
 clean:
-	rm -rf bin coverage.out test-report.json
+	rm -rf bin coverage.out coverage-js-lcov.info test-report.json
 
 PLATFORMS := darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64
 VERSION   := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)

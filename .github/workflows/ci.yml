@@ -48,6 +48,11 @@ jobs:
       - name: Generate coverage report
         run: go test -coverpkg=./... -coverprofile=coverage.out ./...
 
+      # Real dashboard e2e — also emits coverage-js-lcov.info (V8
+      # precise coverage) which the Sonar scan picks up for JS.
+      - name: Dashboard smoke + JS coverage
+        run: make smoke
+
       # Self-skips until SONAR_TOKEN is added to the repository secrets;
       # requires Automatic Analysis to stay disabled for the project on
       # sonarcloud.io (the scanner rejects the upload otherwise).

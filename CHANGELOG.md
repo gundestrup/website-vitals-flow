@@ -5,6 +5,25 @@ All notable changes to website-vitals-flow. Format loosely follows
 
 ## Unreleased
 
+### Added
+
+- **JS coverage pipeline**: `smoke -lcov` collects V8 precise coverage
+  during the headless dashboard e2e and emits LCOV
+  (`coverage-js-lcov.info`) → `sonar.javascript.lcov.reportPaths`; the
+  JS coverage exclusion was removed — app.js/theme.js now report real
+  numbers (~36% from a load-only smoke) instead of being hidden
+- **serve.go tests** (52→~90%): re-exec-self pattern — the test binary
+  relaunches with argv `wvf serve` so real `lsof`+`ps` see a genuine
+  stale process; covers the kill path, the foreign-listener safety
+  branch, early returns, `firstBin`, bind-error, and full lifecycle
+  (stale-job cleanup notice + SIGINT shutdown)
+
+### Fixed
+
+- CI Sonar job now runs the real `make smoke` (headless dashboard
+  e2e) — previously no CI job executed the smoke harness at all;
+  the `check` job's `smoke` step was a build sanity check only
+
 ## 0.2.1 — 2026-11-14
 
 ### Added
