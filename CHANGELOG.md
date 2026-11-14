@@ -5,6 +5,8 @@ All notable changes to website-vitals-flow. Format loosely follows
 
 ## Unreleased
 
+## 0.2.1 — 2026-11-14
+
 ### Added
 
 - **License**: AGPL-3.0-only (`LICENSE` + badge)
