@@ -12,7 +12,8 @@ import (
 	"time"
 )
 
-const endpoint = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
+// endpoint is a var so tests can point Fetch at an httptest server.
+var endpoint = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 
 // Result is the slice we keep from a PSI response.
 type Result struct {
