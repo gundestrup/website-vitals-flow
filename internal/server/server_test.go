@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -714,5 +715,111 @@ func TestRunRowsFormat(t *testing.T) {
 	if len(rows) != 1 || rows[0].TTFB != "42" || rows[0].LCP != "2500" ||
 		rows[0].CLS != "0.123" || rows[0].Proto != "h2" {
 		t.Fatalf("runRows: %+v", rows[0])
+	}
+}
+
+// Static + meta endpoints — exercises the New() route table and the
+// embedded static handler; a missing asset goes through FileServer's
+// 404 path.
+func TestStaticEndpoints(t *testing.T) {
+	s, _ := seed(t)
+	for _, p := range []string{
+		"/robots.txt", "/sitemap.xml", "/site.webmanifest",
+		"/favicon.svg", "/favicon.ico", "/favicon-96x96.png",
+		"/apple-touch-icon.png", "/web-app-manifest-192x192.png",
+		"/web-app-manifest-512x512.png", "/app.js", "/theme.js",
+		"/style.css",
+	} {
+		rec := httptest.NewRecorder()
+		s.ServeHTTP(rec, httptest.NewRequest("GET", p, nil))
+		if rec.Code != 200 {
+			t.Errorf("GET %s: want 200, got %d", p, rec.Code)
+		}
+	}
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, httptest.NewRequest("GET", "/no-such-asset.txt", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("missing asset: want 404, got %d", rec.Code)
+	}
+}
+
+// WVF_DEV_STATIC serves files straight from a directory (dev loop);
+// a nonexistent override dir falls back to the embedded assets. The
+// override also sources page templates, so the dir needs a full copy.
+func TestStaticDevOverride(t *testing.T) {
+	dir := t.TempDir()
+	ents, err := os.ReadDir("static")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range ents {
+		if e.IsDir() {
+			continue // vendor/ — not needed for templates or this probe
+		}
+		data, err := os.ReadFile("static/" + e.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(dir+"/"+e.Name(), data, 0o600); err != nil { // #nosec G703 -- names from own static dir
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(dir+"/probe.js", []byte("// dev override\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("WVF_DEV_STATIC", dir)
+	s, _ := seed(t)
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, httptest.NewRequest("GET", "/probe.js", nil))
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "dev override") {
+		t.Fatalf("dev static: %d %q", rec.Code, rec.Body.String())
+	}
+
+	t.Setenv("WVF_DEV_STATIC", dir+"/missing")
+	s2, _ := seed(t)
+	rec = httptest.NewRecorder()
+	s2.ServeHTTP(rec, httptest.NewRequest("GET", "/app.js", nil))
+	if rec.Code != 200 {
+		t.Fatalf("embedded fallback after bad override: %d", rec.Code)
+	}
+}
+
+// scanViaRunner rejects unparseable URLs before enqueueing.
+func TestMCPScanBadURL(t *testing.T) {
+	s, _ := seed(t)
+	code, obj, _ := do(t, s, "POST", "/mcp",
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"scan","arguments":{"url":"http://%"}}}`)
+	if code != 200 {
+		t.Fatalf("code %d", code)
+	}
+	res := obj["result"].(map[string]any)
+	if res["isError"] != true {
+		t.Fatalf("want isError result for bad url, got %v", res)
+	}
+}
+
+// A bogus browser makes the queued scan job fail deterministically —
+// scanViaRunner must surface "scan failed: <detail>".
+func TestMCPScanFailedJob(t *testing.T) {
+	st, err := store.Open(context.Background(), t.TempDir()+"/t.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	cfg := config.Default()
+	cfg.BrowserPath = "/nonexistent/wvf-test-browser"
+	r := jobs.New(st, cfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go r.Start(ctx)
+	h := New(st, cfg, r)
+
+	code, obj, _ := do(t, h, "POST", "/mcp",
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"scan","arguments":{"url":"http://127.0.0.1:9/"}}}`)
+	if code != 200 {
+		t.Fatalf("code %d", code)
+	}
+	if txt := mcpText(t, obj); !strings.Contains(txt, "scan failed") {
+		t.Fatalf("want scan-failed report, got %q", txt)
 	}
 }
