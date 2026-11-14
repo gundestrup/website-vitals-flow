@@ -61,7 +61,7 @@ check: vet test lint build jscheck uiqa webcheck mdcheck yamlcheck sbtest semgre
 # smoke: load the dashboard headless, fail on console errors —
 # catches runtime binding bugs node --check can't see
 smoke: build
-	@echo "listen: '127.0.0.1:8421'" > /tmp/wvf-smoke.yml ; 	(./bin/wvf serve --config /tmp/wvf-smoke.yml >/tmp/wvf-smoke.log 2>&1 &) ; 	sleep 2 ; 	go run ./scripts/smoke -lcov coverage-js-lcov.info http://127.0.0.1:8421 ; rc=$$? ; 	pkill -f "serve --config /tmp/wvf-smoke.yml" ; exit $$rc
+	@echo "listen: '127.0.0.1:8421'" > /tmp/wvf-smoke.yml ; 	./bin/wvf serve --config /tmp/wvf-smoke.yml >/tmp/wvf-smoke.log 2>&1 & echo $$! > /tmp/wvf-smoke.pid ; 	sleep 2 ; 	go run ./scripts/smoke -lcov coverage-js-lcov.info http://127.0.0.1:8421 ; rc=$$? ; 	kill $$(cat /tmp/wvf-smoke.pid) 2>/dev/null ; exit $$rc
 
 coverage-ci:
 	go test -race -coverpkg=./... -coverprofile=coverage.out ./...
