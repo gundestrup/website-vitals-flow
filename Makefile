@@ -1,4 +1,4 @@
-.PHONY: check build test coverage-ci clean
+.PHONY: check build test coverage-ci clean semgrep
 
 GOFILES := $(shell find . -name '*.go' -not -path './vendor/*')
 
@@ -42,7 +42,14 @@ lint:
 	@command -v golangci-lint >/dev/null 2>&1 || { echo "golangci-lint not installed — skipped"; exit 0; }
 	@golangci-lint run ./...
 
-check: vet test lint build jscheck uiqa webcheck mdcheck yamlcheck sbtest
+# semgrep: SAST gate — community rules; a logged-in CLI (semgrep login)
+# also pulls Pro rules. Scan scope lives in .semgrepignore (it REPLACES
+# the built-in default list, so the defaults are re-declared there).
+semgrep:
+	@command -v semgrep >/dev/null 2>&1 || { echo "semgrep not installed — skipped"; exit 0; }
+	@semgrep scan --config auto --error --quiet && echo "semgrep ok"
+
+check: vet test lint build jscheck uiqa webcheck mdcheck yamlcheck sbtest semgrep
 	@echo "check ok"
 
 # smoke: load the dashboard headless, fail on console errors —

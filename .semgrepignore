@@ -1,0 +1,59 @@
+# Scope for `semgrep ci` / `semgrep scan`. Anchored paths are repo-root
+# relative (gitignore syntax) — keep the leading `/` so they cannot match
+# a same-named directory deeper in the tree.
+#
+# NOTE: a project .semgrepignore REPLACES Semgrep's built-in default
+# ignore list — the first block below re-declares those defaults
+# verbatim so nothing loses coverage. Repo-specific entries follow.
+
+# --- Semgrep default template --------------------------------------
+# Administrative folder or file used by popular version control systems
+.git
+.svn
+.hg
+_darcs
+CVS
+
+# Paths to files and folders that are typically large and ignorable
+build/
+vendor/
+dist/
+*.min.js
+.env/
+.tox/
+
+# Package managers
+node_modules/
+.npm/
+.yarn/
+.venv/
+_opam/
+_build/
+_cargo/
+
+# Common test paths — test scaffolding holds fixtures/intentional
+# bad patterns by design; findings there are noise.
+test/
+tests/
+testsuite/
+*_test.go
+
+# --- Repo-specific --------------------------------------------------
+# Rationale: findings outside cmd/+internal/ are operator tooling and
+# generated artifacts that never see untrusted input. The real attack
+# surface stays scanned: cmd/, internal/, .github/, package-lock.json.
+
+# Vendored third-party UI assets (bulma/chart.js/alpine-csp) — pinned
+# upstream code, same class as node_modules; scanning it is pure noise.
+/internal/server/static/vendor/
+
+# Committed release binaries + checksums — build output, not source.
+/dist/
+
+# Generated scan reports (--html output) and scratch assets.
+/report/
+/static-tmp/
+
+# Coverage/test artifacts.
+/coverage.out
+/test-report.json
