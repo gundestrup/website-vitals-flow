@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -134,6 +135,7 @@ func cfgForTest(dir string) config.Config {
 func TestScanIntegration(t *testing.T) {
 	bin, _, err := chrome.Find("")
 	if err != nil {
+		fmt.Printf("TestScanIntegration skip: %v\n", err)
 		t.Skipf("no chrome available: %v", err)
 	}
 	// capability probe, not just presence — a binary that can't launch
@@ -142,6 +144,7 @@ func TestScanIntegration(t *testing.T) {
 	_, stop, lerr := chrome.Launch(lctx, bin)
 	if lerr != nil {
 		lcancel()
+		fmt.Printf("TestScanIntegration skip: chrome %s won't launch: %v\n", bin, lerr)
 		t.Skipf("chrome found but won't launch: %v", lerr)
 	}
 	stop()

@@ -98,6 +98,12 @@ func Launch(ctx context.Context, path string) (context.Context, context.CancelFu
 		chromedp.Flag("remote-debugging-port", "0"),
 		chromedp.WindowSize(1366, 768),
 	)
+	// CI/container environments often lack the kernel features Chrome's
+	// sandbox needs (user namespaces) or run as root; scoped to $CI so
+	// local launches keep the sandbox.
+	if os.Getenv("CI") != "" {
+		opts = append(opts, chromedp.NoSandbox)
+	}
 	allocCtx, allocCancel := chromedp.NewExecAllocator(ctx, opts...)
 	browserCtx, cancel := chromedp.NewContext(allocCtx)
 	if _, err := chromedp.Run(browserCtx, chromedp.Evaluate[string](`navigator.userAgent`)); err != nil {
