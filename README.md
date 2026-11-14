@@ -68,7 +68,8 @@ two transports:
 `scan <url>` [--samples N] [--settle D] [--timeout D] [--json] [--html f] [--deep] [--psi] [--only lcp,cls,...]
 `sites add|list|remove` [--schedule D] [--deep] [--only set] · `report <id>` · `prune`
 `compare <site>` `[--base <run-id>]` `[--thresh %]` — baseline-vs-latest metric diff
-`serve` · `doctor` · `mcp` (stdio MCP server for IDEs/agents)
+`jobs` — recent job queue state · `serve` · `doctor` · `mcp` (stdio MCP
+server for IDEs/agents) · `version`
 
 ### Menubar + extras
 
@@ -175,17 +176,27 @@ no CDN/runtime deps. References:
 `go vet`, `go test -race`, `golangci-lint` (`.golangci.yml` v2),
 build, `jscheck` (`node --check` on all static JS), `uiqa`
 (html/css/alpine-csp hygiene — no `x-html`, no `||{}` guards, no
-`\'` escapes, no external assets, balanced braces).
+`\'` escapes, no external assets, balanced braces), `webcheck`
+(biome + html-validate on first-party assets), `mdcheck`
+(markdownlint-cli2), `yamlcheck` (workflow/config YAML parse),
+`sbtest` (SwiftBar plugin lifecycle), `semgrep` (SAST, scope in
+`.semgrepignore`; Pro rules when logged in).
 `make smoke` — e2e: serves on :8421 and fails on any browser console
 error headlessly (needs Chrome).
 `make lint` — golangci-lint alone. `build` stays compile-only.
+`make release VERSION=vX.Y.Z` — gated 5-platform dist build; CI
+`release.yml` runs the same on `v*` tag push and attaches binaries to
+the GitHub release.
 
 ## Config (wvf.yml / WVF_* env)
 
-`samples` 3 · `settle` 1.5s · `scan_timeout` 90s · `keep_last` 100 ·
+`samples` 3 · `scan_timeout` 90s · `keep_last` 100 ·
 `max_age_days` 56 · `listen` 127.0.0.1:8420 · `state_db` state.db ·
 `browser_path` auto-detect · `psi_key`/`WVF_PSI_KEY` for PSI (unauthenticated
 quota is ~0 — a key is required in practice)
+
+`settle` (post-load wait for late LCP/CLS, default 1.5s) is a `scan`
+flag only — not a wvf.yml key.
 
 ## Design
 
@@ -197,3 +208,7 @@ quota is ~0 — a key is required in practice)
   same detail_json but clearly separate from lab metrics
 - `sites add --deep` makes scheduled + scan-now runs deep per-site;
   jobs carry a deep flag so one-off deep scans don't change the site
+
+## License
+
+[AGPL-3.0-only](LICENSE).

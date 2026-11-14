@@ -5,6 +5,29 @@ All notable changes to website-vitals-flow. Format loosely follows
 
 ## Unreleased
 
+### Added
+
+- **License**: AGPL-3.0-only (`LICENSE` + badge)
+- **Semgrep config**: `.semgrepignore` (default template re-declared +
+  repo scope), `make semgrep` gate joined to `check`, `semgrep ci` CI
+  job (`SEMGREP_APP_TOKEN`, platform rules)
+- **SonarCloud + Codecov**: `sonar-project.properties`, `sonar` CI job
+  (self-skips without `SONAR_TOKEN`), tokenless codecov upload
+- **Release automation**: `release.yml` — `v*` tag push verifies the
+  changelog heading, runs gated `make release`, attaches 5-platform
+  binaries + SHA256SUMS to the GitHub release
+- README badge set (status/CI/quality/coverage/release/license),
+  repo description + topics, `README.todo.swifibar.md` analysis doc
+
+### Fixed
+
+- `make release` now stamps `-X cli.version` into dist binaries
+  (previously reported `wvf dev`); v0.2.0 assets rebuilt
+- `buildCards` split into per-card helpers — SonarLint complexity 47→<15
+- Docs: `jobs`/`version` commands, full `make check` gate list, `settle`
+  is a scan flag not a wvf.yml key, site mutation + badge endpoints in
+  api.md, License section
+
 ## 0.2.0 — 2026-11-14
 
 ### Added

@@ -13,6 +13,8 @@ monitored-site history, IDE-callable API. Single Go binary, SQLite.
 - `bin/wvf serve` — dashboard + scheduler on 127.0.0.1:8420
 - Chrome/Chromium auto-detected; `browser_path` in wvf.yml or
   WVF_BROWSER_PATH to override; `psi_key`/WVF_PSI_KEY for PSI
+- Release: add `## X.Y.Z — <date>` heading in CHANGELOG, push main,
+  tag `vX.Y.Z`, push tag — `release.yml` gates + attaches dist binaries
 
 ## Conventions
 

@@ -30,6 +30,7 @@ Sync response: `{"job": 3, "site": "localhost:3000", "state": "done",
 
 `{key, deep, only, page}` — `page` scans a sub-path
 (`site.URL + "/" + page`); report shows `page <path>`.
+`{"key": "localhost:3000"}` → `{"job": N}` — uses the site's `deep` flag.
 
 ### `POST /api/scan-all`
 
@@ -48,7 +49,17 @@ SSE stream — pushes the full jobs list whenever it changes (1s tick,
 deltas only). Dashboard uses `EventSource`; never gzip/br-compressed.
 REST `/api/jobs` remains for snapshot clients.
 
-`{"key": "localhost:3000"}` → `{"job": N}` — uses the site's `deep` flag.
+## Sites
+
+- `POST /api/sites` — create/update a monitored site:
+  `{"url", "label", "schedule", "deep", "only"}` → the upserted site
+  (key derived from `url`, canonicalized)
+- `PATCH /api/sites/{key}` — partial update; only sent fields change:
+  `{"label"?, "schedule"?, "deep"?, "only"?}`
+- `DELETE /api/sites/{key}` — remove the site and its runs →
+  `{"removed": "<key>"}`
+- `POST /api/prune` — apply retention now: `{"key"}` limits to one
+  site, empty body prunes all → `{"dropped": N}`
 
 ## Read
 
@@ -59,6 +70,9 @@ REST `/api/jobs` remains for snapshot clients.
   attribution, lighthouse, psi; samples[].console holds captured
   page console warn/error/exception entries for JS debugging)
 - `GET /api/jobs` — recent jobs (progress via `detail`)
+- `GET /badge.svg?metric=lcp&run=<id>` or `?value=648` — shields.io-style
+  SVG, band-colored; `GET /badges/{metric}-{band}.svg` serves the
+  vendored static badges
 
 ## IDE integration (VS Code etc.)
 
