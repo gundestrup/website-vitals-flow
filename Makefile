@@ -34,9 +34,9 @@ mdcheck:
 	@test ! -d node_modules/markdownlint-cli2 || ./node_modules/.bin/markdownlint-cli2 "*.md" "docs/**/*.md" > /dev/null && echo "mdcheck ok"
 
 yamlcheck:
-	@for f in .golangci.yml .github/workflows/ci.yml; do \
+	@test ! -d node_modules/yaml || { for f in .golangci.yml .github/workflows/ci.yml .github/workflows/release.yml; do \
 	  [ -f "$$f" ] && node -e "require('yaml').parse(require('fs').readFileSync('$$f','utf8'))" || exit 1; \
-	done && echo "yamlcheck ok"
+	done; } && echo "yamlcheck ok"
 
 lint:
 	@if command -v golangci-lint >/dev/null 2>&1; then \
