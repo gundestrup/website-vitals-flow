@@ -823,3 +823,95 @@ func TestMCPScanFailedJob(t *testing.T) {
 		t.Fatalf("want scan-failed report, got %q", txt)
 	}
 }
+
+// Bad run/value params hit fmtSscanf's and fmtSscanfloat's errBadID
+// branches — the badge must degrade to the n/a fallback, not 500.
+func TestBadgeBadParams(t *testing.T) {
+	s, _ := seed(t)
+	for _, p := range []string{
+		"/badge.svg?metric=lcp&run=abc",     // non-digit run id
+		"/badge.svg?metric=cls&value=1.2.3", // second dot
+		"/badge.svg?metric=lcp&value=abc",   // non-digit value
+	} {
+		rec := httptest.NewRecorder()
+		s.ServeHTTP(rec, httptest.NewRequest("GET", p, nil))
+		if rec.Code != 200 {
+			t.Errorf("GET %s: want 200, got %d", p, rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), "svg") {
+			t.Errorf("GET %s: want svg body", p)
+		}
+	}
+}
+
+// Both JobByID reads fail (cancelled ctx + dead store) — pollJob must
+// still write the accumulated resp instead of an error.
+func TestPollJobFallbackOnDeadStore(t *testing.T) {
+	st, err := store.Open(context.Background(), t.TempDir()+"/t.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &Server{st: st}
+	_ = st.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	resp := map[string]any{"state": "queued"}
+	if !srv.pollJob(rec, req, 1, resp) {
+		t.Fatal("pollJob should write the fallback resp")
+	}
+	var got map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["state"] != "queued" {
+		t.Fatalf("want accumulated state, got %s", rec.Body.String())
+	}
+}
+
+// Client leaves after one successful poll, then the store dies —
+// awaitJob returns the last-seen job rather than an error.
+func TestAwaitJobFallbackLastSeen(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(ctx, t.TempDir()+"/t.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	site, err := st.GetOrCreateSite(ctx, "f.test", "http://f.test", 10, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobID, err := st.InsertJob(ctx, "scan", site.ID, false, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &Server{st: st}
+
+	reqCtx, cancel := context.WithCancel(ctx)
+	type result struct {
+		j     *store.Job
+		runID int64
+		err   error
+	}
+	done := make(chan result, 1)
+	go func() {
+		j, rid, err := srv.awaitJob(reqCtx, jobID)
+		done <- result{j, rid, err}
+	}()
+	// first poll (500ms tick) must complete before we kill the store
+	time.Sleep(800 * time.Millisecond)
+	_ = st.Close()
+	cancel()
+	select {
+	case r := <-done:
+		if r.err != nil {
+			t.Fatalf("awaitJob: %v", r.err)
+		}
+		if r.j == nil || r.j.State != "queued" {
+			t.Fatalf("want last-seen queued job, got %+v", r.j)
+		}
+	case <-time.After(6 * time.Second):
+		t.Fatal("awaitJob did not return after cancel")
+	}
+}

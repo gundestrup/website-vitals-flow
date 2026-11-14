@@ -113,3 +113,57 @@ func TestLaunchBadBinary(t *testing.T) {
 		t.Errorf("error shape: %v", err)
 	}
 }
+
+// Managed-cache hit: $HOME/.cache/wvf/chrome-headless-shell holding a
+// working binary must win — Find returns it without touching
+// candidates or PATH.
+func TestFindManagedCacheHit(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fake is POSIX-only")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	dir := filepath.Join(home, ".cache", "wvf", headlessShell)
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	fake := filepath.Join(dir, headlessShell)
+	err := os.WriteFile(fake, []byte("#!/bin/sh\necho 'HeadlessShell 999.0 test'\n"), 0o755) // #nosec G306 -- fixture must exec
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, ver, err := Find("")
+	if err != nil {
+		t.Fatalf("Find: %v", err)
+	}
+	if path != fake {
+		t.Fatalf("want managed %s, got %s", fake, path)
+	}
+	if !strings.Contains(ver, "HeadlessShell") {
+		t.Fatalf("version: %q", ver)
+	}
+}
+
+// A working candidate at the front of the list wins — covers the
+// probeVersion-success return inside the candidates loop.
+func TestFindCandidateHit(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fake is POSIX-only")
+	}
+	t.Setenv("HOME", t.TempDir()) // no managed cache hit
+	fake := filepath.Join(t.TempDir(), "fakechrome")
+	err := os.WriteFile(fake, []byte("#!/bin/sh\necho 'Chromium 999.0 fake'\n"), 0o755) // #nosec G306 -- fixture must exec
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := candidates
+	candidates = append([]string{fake}, candidates...)
+	defer func() { candidates = old }()
+	path, ver, err := Find("")
+	if err != nil {
+		t.Fatalf("Find: %v", err)
+	}
+	if path != fake || !strings.Contains(ver, "Chromium 999") {
+		t.Fatalf("want fake candidate, got %s %q", path, ver)
+	}
+}
