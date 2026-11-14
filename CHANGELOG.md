@@ -21,6 +21,15 @@ All notable changes to website-vitals-flow. Format loosely follows
 
 ### Fixed
 
+- **SonarCloud main branch** renamed master→main (project was
+  provisioned with a nonexistent default — badges now compute and
+  `main` gets full branch analysis instead of expiring SLB scans)
+- **Coverage** 38%→53%: `codecov.yml` scopes out `cmd/`+`scripts/`
+  (entry point + dev harness), matching `sonar.coverage.exclusions`;
+  new tests — `httpcheck` via `httptest.Server` (0→86%), `findings`
+  table-driven analyzer + adapters (32→98%), `jobs` runner/Persist
+  (6→58%), `scheduler` sweep+ticker (24→95%), `cli` sites/prune/
+  report/jobs commands (→41%)
 - `make release` now stamps `-X cli.version` into dist binaries
   (previously reported `wvf dev`); v0.2.0 assets rebuilt
 - `buildCards` split into per-card helpers — SonarLint complexity 47→<15

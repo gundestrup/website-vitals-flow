@@ -1,0 +1,16 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 10%
+    patch: off
+
+comment: false
+
+# Entry point + dev tooling (scripts/smoke is itself the e2e harness,
+# scripts/shot is a docs screenshot helper) — instrumented by
+# -coverpkg=./... but never reachable by unit tests.
+ignore:
+  - "cmd/**"
+  - "scripts/**"
