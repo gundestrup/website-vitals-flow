@@ -12,7 +12,7 @@ WVF_BIN="${WVF_BIN:-$HOME/workspace/website-vitals-flow/bin/wvf}"
 API="${WVF_API:-http://127.0.0.1:8420}"
 JOBS=$(curl -fsm 3 "$API/api/jobs" 2>/dev/null)
 
-if [ -z "$JOBS" ]; then
+if [[ -z "$JOBS" ]]; then
   echo "WVF ✕ | color=gray"
   echo "---"
   echo "server stopped"
@@ -31,15 +31,15 @@ for x in (run+que)[:6]:
 " 2>/dev/null)
 
 NR=$(echo "$RUN" | head -1 | awk '{print $1}'); NQ=$(echo "$RUN" | head -1 | awk '{print $2}')
-if [ "$NR" -gt 0 ]; then M="WVF ▶$NR"
-elif [ "$NQ" -gt 0 ]; then M="WVF ⏳$NQ"
+if [[ "$NR" -gt 0 ]]; then M="WVF ▶$NR"
+elif [[ "$NQ" -gt 0 ]]; then M="WVF ⏳$NQ"
 else M="WVF ✓"; fi
 echo "$M"
 echo "---"
 echo "server running — ${NR} running, ${NQ} queued | color=green"
 echo "---"
 echo "$RUN" | tail -n +2
-[ "$NR$NQ" = "00" ] && echo "no active jobs | color=gray size=11"
+[[ "$NR$NQ" = "00" ]] && echo "no active jobs | color=gray size=11"
 echo "---"
 echo "Open dashboard | href=$API"
 echo "Scan all | bash=curl param1=-fs param2=-X param3=POST param4=\"$API/api/scan-all\" param5=-d param6='{}' terminal=false refresh=true"

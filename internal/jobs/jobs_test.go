@@ -2,10 +2,13 @@ package jobs
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/gundestrup/website-vitals-flow/internal/chrome"
 	"github.com/gundestrup/website-vitals-flow/internal/config"
 	"github.com/gundestrup/website-vitals-flow/internal/measure"
 	"github.com/gundestrup/website-vitals-flow/internal/store"
@@ -141,5 +144,53 @@ func TestQueueFull(t *testing.T) {
 	}
 	if _, err := r.Enqueue(ctx, site.ID, "scan", false, ""); err == nil {
 		t.Fatal("33rd enqueue should report queue full")
+	}
+}
+
+// TestRunSiteScanIntegration runs THE shared scan path end-to-end —
+// chrome launch, measure, HTTP checks, deep-mode degrade, persist —
+// against a local page. Skips when no usable Chrome exists.
+func TestRunSiteScanIntegration(t *testing.T) {
+	bin, _, err := chrome.Find("")
+	if err != nil {
+		t.Skipf("no chrome: %v", err)
+	}
+	lctx, lcancel := context.WithTimeout(context.Background(), 15*time.Second)
+	_, stop, lerr := chrome.Launch(lctx, bin)
+	if lerr != nil {
+		lcancel()
+		t.Skipf("chrome won't launch: %v", lerr)
+	}
+	stop()
+	lcancel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte("<html><body><h1>t</h1><img src='/i.png'></body></html>"))
+	}))
+	defer srv.Close()
+
+	st, ctx := openTemp(t)
+	site, err := st.GetOrCreateSite(ctx, "int.test", srv.URL, 10, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Samples = 1
+	var prog []string
+	res, runID, err := RunSiteScan(ctx, st, cfg, site,
+		func(s string) { prog = append(prog, s) }, true)
+	if err != nil {
+		t.Fatalf("RunSiteScan: %v", err)
+	}
+	if res == nil || len(res.Samples) != 1 || runID == 0 {
+		t.Fatalf("res=%v runID=%d", res, runID)
+	}
+	if len(prog) == 0 {
+		t.Error("no progress callbacks")
+	}
+	run, err := st.RunByID(ctx, runID)
+	if err != nil || run == nil {
+		t.Fatalf("run not persisted: %v", err)
 	}
 }

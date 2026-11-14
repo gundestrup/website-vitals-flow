@@ -49,6 +49,20 @@ All notable changes to website-vitals-flow. Format loosely follows
 - Job polling (`awaitJob`/`pollJob`) no longer surfaces
   "context canceled" tool errors when the client disconnects mid-poll
   — retries once on a fresh context and reports the job's real state
+- `fmtSscanfloat` fractional parsing — `?value=0.15` badges rendered
+  as 15 (the `.` never entered fractional mode); `?run=` badges were
+  unaffected since those read stored metrics
+- `JobState` uses fixed UPDATE statements instead of a formatted
+  column name (SonarCloud S2077); `[` → `[[` in shell scripts
+  (S7688); `void` on fire-and-forget dashboard promises (S9383);
+  NOSONAR justifications for sitekey http default, PATH-based
+  lsof/ps, and detached job-state reads
+- Third test pass — coverage →~83%: `server` REST/badge/SSE/page
+  handlers + card builders (56→82%, 66→89%), `cli/mcp` stdio via
+  os.Pipe (0→91%), `cli/root` tree+Execute (29→86%), `jobs.
+  RunSiteScan` + `mcpserver.DirectScan` gated real-Chrome
+  integration (jobs 59→86%, deep 60→92%, pipeline 68→90%),
+  `store` job methods, `chrome.Launch` failure path
 - `buildCards` split into per-card helpers — SonarLint complexity 47→<15
 - Docs: `jobs`/`version` commands, full `make check` gate list, `settle`
   is a scan flag not a wvf.yml key, site mutation + badge endpoints in

@@ -69,7 +69,7 @@ func replaceStaleServe(addr string) {
 	if err != nil || port == "" {
 		return
 	}
-	out, err := exec.Command("lsof", "-ti", "tcp:"+port, "-sTCP:LISTEN").Output() // #nosec G204 -- fixed binary, numeric port
+	out, err := exec.Command("lsof", "-ti", "tcp:"+port, "-sTCP:LISTEN").Output() // #nosec G204 NOSONAR -- fixed binary, numeric port; lsof location varies by OS
 	if err != nil || len(out) == 0 {
 		return
 	}
@@ -78,7 +78,7 @@ func replaceStaleServe(addr string) {
 		if err != nil {
 			continue
 		}
-		args, _ := exec.Command("ps", "-p", fs, "-o", "command=").Output() // #nosec G204 -- fixed binary, numeric pid
+		args, _ := exec.Command("ps", "-p", fs, "-o", "command=").Output() // #nosec G204 NOSONAR -- fixed binary, numeric pid; ps location varies by OS
 		if !strings.Contains(string(args), "wvf serve") {
 			continue
 		}

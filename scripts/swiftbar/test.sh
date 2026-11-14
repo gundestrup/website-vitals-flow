@@ -28,8 +28,8 @@ fi
 
 # 3) install/uninstall lifecycle into a temp plugins dir
 SWIFTBAR_PLUGINS="$T/plugins" ./install.sh >/dev/null || { echo "FAIL: install"; fail=1; }
-[ -x "$T/plugins/wvf.30s.sh" ] || { echo "FAIL: installed file"; fail=1; }
+[[ -x "$T/plugins/wvf.30s.sh" ]] || { echo "FAIL: installed file"; fail=1; }
 SWIFTBAR_PLUGINS="$T/plugins" ./uninstall.sh >/dev/null || { echo "FAIL: uninstall"; fail=1; }
-[ ! -e "$T/plugins/wvf.30s.sh" ] || { echo "FAIL: file remains"; fail=1; }
+[[ ! -e "$T/plugins/wvf.30s.sh" ]] || { echo "FAIL: file remains"; fail=1; }
 
-if [ $fail -eq 0 ]; then echo "swiftbar plugin: all tests pass"; else exit 1; fi
+if [[ $fail -eq 0 ]]; then echo "swiftbar plugin: all tests pass"; else exit 1; fi

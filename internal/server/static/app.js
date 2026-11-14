@@ -80,7 +80,7 @@ document.addEventListener('alpine:init', () => {
       this.sites = await this.j('/api/sites') || [];
       this.jobs = await this.j('/api/jobs') || [];
       this.runs = await this.j(`/api/sites/${encodeURIComponent(this.sel)}/runs`) || [];
-      this.loadPages();
+      void this.loadPages();
       this.startSSE();
       setTimeout(() => this.draw(), 0);
     },
@@ -99,11 +99,11 @@ document.addEventListener('alpine:init', () => {
         if (done.some(i => !wasDone.includes(i))) this.refresh();
       };
     },
-    refresh() { if (this.sel) location.reload(); else this.load(); },
+    refresh() { if (this.sel) location.reload(); else void this.load(); },
     // detail-page actions bound to the server-rendered key
-    scanSel() { this.scanSite(this.siteByKey(this.sel)) },
-    editSel() { this.editSite(this.siteByKey(this.sel)) },
-    delSel() { this.delSite(this.siteByKey(this.sel)) },
+    scanSel() { void this.scanSite(this.siteByKey(this.sel)) },
+    editSel() { void this.editSite(this.siteByKey(this.sel)) },
+    delSel() { void this.delSite(this.siteByKey(this.sel)) },
     activeJob() {
       const site = this.siteByKey(this.sel);
       return this.jobs.find(j => (j.state === 'queued' || j.state === 'running') && j.site_id === site.id);

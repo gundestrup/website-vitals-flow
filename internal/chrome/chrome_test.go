@@ -1,10 +1,13 @@
 package chrome
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestFindExplicitMissing(t *testing.T) {
@@ -88,5 +91,25 @@ func TestFindDiscovery(t *testing.T) {
 	}
 	if _, serr := os.Stat(path); serr != nil {
 		t.Fatalf("Find returned missing binary %q", path)
+	}
+}
+
+func TestLaunchBadBinary(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fake is POSIX-only")
+	}
+	stub := filepath.Join(t.TempDir(), "badchrome")
+	if err := os.WriteFile(stub, []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil { // #nosec G306 -- fixture must exec
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	_, stop, err := Launch(ctx, stub)
+	if err == nil {
+		stop()
+		t.Fatal("expected launch failure")
+	}
+	if !strings.Contains(err.Error(), "launch") {
+		t.Errorf("error shape: %v", err)
 	}
 }

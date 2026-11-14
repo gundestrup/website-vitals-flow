@@ -3,7 +3,6 @@ package store
 
 import (
 	"context"
-	"fmt"
 	"time"
 )
 
@@ -42,12 +41,11 @@ func (s *Store) InsertJob(ctx context.Context, kind string, siteID int64, deep b
 
 // JobState moves a job to running/done/failed with detail text.
 func (s *Store) JobState(ctx context.Context, id int64, state, detail string) error {
-	col := "started_at"
+	query := `UPDATE jobs SET state=?, detail=?, started_at=? WHERE id=?`
 	if state == "done" || state == "failed" {
-		col = "finished_at"
+		query = `UPDATE jobs SET state=?, detail=?, finished_at=? WHERE id=?`
 	}
-	_, err := s.db.ExecContext(ctx,
-		fmt.Sprintf(`UPDATE jobs SET state=?, detail=?, %s=? WHERE id=?`, col),
+	_, err := s.db.ExecContext(ctx, query,
 		state, detail, time.Now().UTC().Format(time.RFC3339), id)
 	return err
 }

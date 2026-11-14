@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -181,5 +182,65 @@ func TestScanIntegration(t *testing.T) {
 	}
 	if runs[0].RequestCount < 2 {
 		t.Fatalf("page + image expected, got %d requests", runs[0].RequestCount)
+	}
+}
+
+func TestRootCommandTree(t *testing.T) {
+	root := rootCmd()
+	names := map[string]bool{}
+	for _, c := range root.Commands() {
+		names[c.Name()] = true
+	}
+	for _, want := range []string{"scan", "version", "sites", "prune",
+		"report", "serve", "doctor", "mcp", "compare", "jobs"} {
+		if !names[want] {
+			t.Errorf("missing subcommand %s", want)
+		}
+	}
+}
+
+func TestExecuteVersion(_ *testing.T) {
+	old := os.Args
+	os.Args = []string{"wvf", "version"}
+	defer func() { os.Args = old }()
+	Execute() // prints "wvf <version>" — exercises the happy path
+}
+
+// mcp over stdio: swap os.Stdin/os.Stdout for pipes — tools/list must
+// get a JSON-RPC response listing the scan tool.
+func TestMCPCommandStdio(t *testing.T) {
+	dir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(oldWd) }()
+
+	inR, inW, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	outR, outW, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldIn, oldOut := os.Stdin, os.Stdout
+	os.Stdin, os.Stdout = inR, outW
+	defer func() { os.Stdin, os.Stdout = oldIn, oldOut }()
+
+	if _, err := inW.WriteString(
+		`{"jsonrpc":"2.0","id":1,"method":"tools/list"}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	_ = inW.Close() // EOF — Serve returns
+
+	cmd := mcpCmd()
+	if err := cmd.RunE(cmd, nil); err != nil {
+		t.Fatalf("mcp RunE: %v", err)
+	}
+	_ = outW.Close()
+	out, _ := io.ReadAll(outR)
+	if !strings.Contains(string(out), `"scan"`) {
+		t.Fatalf("tools/list response lacks scan tool: %s", out)
 	}
 }

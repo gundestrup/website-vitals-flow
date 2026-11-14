@@ -14,6 +14,8 @@ import (
 func From(raw string) (key, canonical string, err error) {
 	u := raw
 	if !strings.Contains(u, "://") {
+		// NOSONAR -- scheme default for canonicalization only; http
+		// targets (localhost dev servers) are supported by design
 		u = "http://" + u
 	}
 	parsed, err := url.Parse(u)

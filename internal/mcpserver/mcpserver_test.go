@@ -5,11 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/gundestrup/website-vitals-flow/internal/chrome"
 	"github.com/gundestrup/website-vitals-flow/internal/config"
+	"github.com/gundestrup/website-vitals-flow/internal/measure"
 	"github.com/gundestrup/website-vitals-flow/internal/store"
 )
 
@@ -180,5 +184,58 @@ func TestRunToolSurfacesFindings(t *testing.T) {
 	}
 	if len(out.Findings) != 1 || out.Findings[0]["id"] != "cls" {
 		t.Fatalf("findings not surfaced: %+v", out)
+	}
+}
+
+func TestScanPayloadShape(t *testing.T) {
+	lcp := 2500.0
+	res := &measure.Result{
+		Samples: []measure.Sample{{
+			TTFBms: 100, FCPms: &lcp, LCPms: &lcp,
+			CLS: 0.05, TBTms: 30,
+			Responses: []measure.Response{{}, {}, {}},
+		}},
+		Findings: []measure.Finding{{ID: "f1"}},
+	}
+	p := ScanPayload("k.test", 42, res)
+	if p["site"] != "k.test" || p["run_id"] != int64(42) ||
+		p["requests"] != 3 || p["ttfb_ms"] != 100.0 {
+		t.Fatalf("payload: %v", p)
+	}
+}
+
+// TestDirectScanIntegration drives the stdio scan tool through a real
+// Chrome scan of a local page — covers DirectScan + RunSiteScan +
+// ScanPayload in one go. Skips when no usable Chrome exists.
+func TestDirectScanIntegration(t *testing.T) {
+	bin, _, err := chrome.Find("")
+	if err != nil {
+		t.Skipf("no chrome: %v", err)
+	}
+	lctx, lcancel := context.WithTimeout(context.Background(), 15*time.Second)
+	_, stop, lerr := chrome.Launch(lctx, bin)
+	if lerr != nil {
+		lcancel()
+		t.Skipf("chrome won't launch: %v", lerr)
+	}
+	stop()
+	lcancel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte("<html><body><h1>t</h1></body></html>"))
+	}))
+	defer srv.Close()
+
+	st := seedStore(t)
+	cfg := config.Default()
+	cfg.Samples = 1
+	scan := DirectScan(st, cfg, func(string) {})
+	out, err := scan(context.Background(), ScanArgs{URL: srv.URL})
+	if err != nil {
+		t.Fatalf("DirectScan: %v", err)
+	}
+	if out["run_id"] == nil || out["site"] == nil {
+		t.Fatalf("payload: %v", out)
 	}
 }
