@@ -8,7 +8,9 @@
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=gundestrup_website-vitals-flow&metric=coverage)](https://sonarcloud.io/summary/new_code?id=gundestrup_website-vitals-flow)
 [![codecov](https://codecov.io/gh/gundestrup/website-vitals-flow/graph/badge.svg)](https://codecov.io/gh/gundestrup/website-vitals-flow)
 [![CodeFactor](https://www.codefactor.io/repository/github/gundestrup/website-vitals-flow/badge)](https://www.codefactor.io/repository/github/gundestrup/website-vitals-flow)
-[![DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/gundestrup/website-vitals-flow)
+<!-- markdownlint-disable MD033 -->
+[<img src="https://devin.ai/assets/askdeepwiki.png" alt="DeepWiki" height="20"/>](https://deepwiki.com/gundestrup/website-vitals-flow)
+<!-- markdownlint-enable MD033 -->
 [![Go >= 1.27](https://img.shields.io/badge/go-%3E%3D_1.27-00add8?logo=go&logoColor=white)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/tag/gundestrup/website-vitals-flow)](https://github.com/gundestrup/website-vitals-flow/tags)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
