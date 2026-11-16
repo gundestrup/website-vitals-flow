@@ -3,7 +3,7 @@
   "private": true,
   "devDependencies": {
     "@alpinejs/csp": "^3.17.5",
-    "@biomejs/biome": "^2.6.4",
+    "@biomejs/biome": "^2.6.6",
     "badge-maker": "^6.0.0",
     "bulma": "^1.0.4",
     "chart.js": "^4.6.1",
