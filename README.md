@@ -1,4 +1,6 @@
-# website-vitals-flow
+<!-- markdownlint-disable MD013 MD033 -->
+# website-vitals-flow <a href="https://gundestrup.github.io/flow/"><img align="right" src="https://gundestrup.github.io/flow/assets/badges/part-of-flow.svg?v=2" alt="Part of Flow software" height="40"></a>
+<!-- markdownlint-enable MD013 MD033 -->
 
 [![Status: Active](https://img.shields.io/badge/status-active-success)](https://github.com/gundestrup/website-vitals-flow)
 [![CI](https://github.com/gundestrup/website-vitals-flow/actions/workflows/ci.yml/badge.svg)](https://github.com/gundestrup/website-vitals-flow/actions/workflows/ci.yml)
