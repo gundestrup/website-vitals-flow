@@ -5,6 +5,14 @@ All notable changes to website-vitals-flow. Format loosely follows
 
 ## Unreleased
 
+### Changed
+
+- Go deps: `chromedp` v0.22.0 → v0.24.0, `chromedp/cdproto` v0.159.1 →
+  v0.160.8, `modernc.org/sqlite` v1.61.1 → v1.63.0.
+- npm dev-deps: `markdownlint-cli2` 0.24.1 → 0.24.2, `@biomejs/biome`
+  2.6.6 → 2.6.9, `html-validate` 11.17.0 → 11.22.1.
+- Vendored `chart.js` 4.6.1 → 4.6.2 (`static/vendor/chart.umd.js`).
+
 ### Added
 
 - **JS coverage pipeline**: `smoke -lcov` collects V8 precise coverage
