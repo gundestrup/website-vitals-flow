@@ -3,17 +3,17 @@ module github.com/gundestrup/website-vitals-flow
 go 1.27.3
 
 require (
-	github.com/chromedp/cdproto v0.159.1
-	github.com/chromedp/chromedp v0.22.0
+	github.com/andybalholm/brotli v1.2.8
+	github.com/chromedp/cdproto v0.160.8
+	github.com/chromedp/chromedp v0.24.0
 	github.com/pquerna/cachecontrol v0.2.0
 	github.com/quic-go/quic-go v0.65.0
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
-	modernc.org/sqlite v1.61.1
+	modernc.org/sqlite v1.63.0
 )
 
 require (
-	github.com/andybalholm/brotli v1.2.8 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/go-json-experiment/json v0.0.0-20260820222146-c27c302e5fc3 // indirect
 	github.com/google/uuid v1.6.0 // indirect
