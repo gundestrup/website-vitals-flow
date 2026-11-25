@@ -12,6 +12,9 @@ All notable changes to website-vitals-flow. Format loosely follows
 - npm dev-deps: `markdownlint-cli2` 0.24.1 → 0.24.2, `@biomejs/biome`
   2.6.6 → 2.6.9, `html-validate` 11.17.0 → 11.22.1.
 - Vendored `chart.js` 4.6.1 → 4.6.2 (`static/vendor/chart.umd.js`).
+- npm supply-chain hardening: `.npmrc` now pins `min-release-age=7` and
+  `ignore-scripts=true` (sibling-repo convention; Dependabot already
+  applies a 7-day cooldown).
 
 ### Added
 

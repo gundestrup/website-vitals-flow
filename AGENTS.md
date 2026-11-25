@@ -32,6 +32,8 @@ monitored-site history, IDE-callable API. Single Go binary, SQLite.
   aborts the whole subtree (badges AND x-bind:title tooltips); verify
   with `make smoke`, never ship console errors
 - Vendored UI assets in static/vendor via pinned package.json — never CDN
+- `.npmrc` pins `min-release-age=7` + `ignore-scripts=true` — supply-chain
+  hardening; only resolve dep versions ≥7 days old
 - `.semgrepignore` REPLACES Semgrep's default ignore list — defaults are
   re-declared at its top; add repo entries below. Suppress single-site
   findings inline with `// nosemgrep` + `#nosec`, never by broad ignore
